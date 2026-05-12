@@ -1,0 +1,16 @@
+version: "3.8"
+
+services:
+  wxclawbotpush:
+    build: .
+    container_name: wxclawbotpush
+    ports:
+      - "${WEBHOOK_PORT:-8099}:8099"
+    volumes:
+      - ./data:/data
+    environment:
+      - TZ=Asia/Shanghai
+      - WEBHOOK_PORT=8099
+      - DATA_DIR=/data
+      - ILINK_BASE_URL=${ILINK_BASE_URL:-https://ilinkai.weixin.qq.com}
+    restart: unless-stopped
