@@ -1,0 +1,8 @@
+.git
+.gitignore
+.github
+data
+.env
+.env.example
+*.md
+*.tar.gz
