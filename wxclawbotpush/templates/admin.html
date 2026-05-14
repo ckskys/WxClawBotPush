@@ -3,140 +3,203 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>WxClawbotPush - 微信通知转发</title>
+<title>WxClawBotPush - 管理面板</title>
 <style>
-  :root { --bg: #f5f5f5; --card: #fff; --text: #333; --muted: #888; --primary: #07c160; --danger: #e74c3c; --radius: 8px; }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
-  .container { max-width: 800px; margin: 0 auto; padding: 20px; }
-  h1 { font-size: 22px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
-  .logo { width: 32px; height: 32px; background: var(--primary); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: bold; font-size: 18px; }
-  .card { background: var(--card); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
-  .card-title { font-size: 16px; font-weight: 600; margin-bottom: 12px; }
-  .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; }
-  .status-dot.on { background: var(--primary); }
-  .status-dot.off { background: var(--muted); }
-  .btn { padding: 8px 20px; border: none; border-radius: var(--radius); cursor: pointer; font-size: 14px; }
-  .btn-primary { background: var(--primary); color: #fff; }
-  .btn-danger { background: var(--danger); color: #fff; }
-  .btn-outline { background: transparent; border: 1px solid #ddd; }
-  .btn:disabled { opacity: .5; cursor: not-allowed; }
-  input, textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: var(--radius); font-size: 14px; }
-  textarea { resize: vertical; min-height: 80px; }
-  .form-group { margin-bottom: 12px; }
-  .form-group label { display: block; margin-bottom: 4px; font-weight: 500; font-size: 14px; }
-  .qrcode-container { text-align: center; padding: 16px; }
-  .qrcode-container img { max-width: 280px; border-radius: var(--radius); }
-  .log-entry { font-family: monospace; font-size: 12px; padding: 4px 0; border-bottom: 1px solid #f0f0f0; }
-  .log-time { color: var(--muted); margin-right: 8px; }
-  .log-INFO { color: #333; }
-  .log-WARNING { color: #e67e22; }
-  .log-ERROR { color: var(--danger); }
-  .toast { position: fixed; top: 16px; right: 16px; background: #333; color: #fff; padding: 10px 20px; border-radius: var(--radius); z-index: 999; display: none; }
-  .hint { color: var(--muted); font-size: 13px; margin-top: 4px; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; }
+.header { background: #fff; border-bottom: 1px solid #e8e8e8; padding: 0 24px; height: 56px; display: flex; align-items: center; justify-content: space-between; }
+.header h1 { font-size: 18px; color: #1a1a1a; }
+.header .right { display: flex; align-items: center; gap: 12px; }
+.header .right span { font-size: 14px; color: #666; }
+.header button { background: none; border: 1px solid #d9d9d9; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; }
+.container { max-width: 900px; margin: 24px auto; padding: 0 16px; }
+.card { background: #fff; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); padding: 24px; margin-bottom: 16px; }
+.card h2 { font-size: 16px; margin-bottom: 16px; color: #333; }
+.form-row { display: flex; gap: 12px; margin-bottom: 12px; }
+.form-row input { flex: 1; padding: 8px 12px; border: 1px solid #d9d9d9; border-radius: 6px; font-size: 14px; }
+.form-row input:focus { outline: none; border-color: #07c160; }
+.btn { padding: 8px 20px; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; }
+.btn-green { background: #07c160; color: #fff; }
+.btn-green:hover { background: #06ad56; }
+.btn-red { background: #e74c3c; color: #fff; }
+.btn-red:hover { background: #c0392b; }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
+th { color: #999; font-weight: 500; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; }
+.badge-on { background: #e6f9f0; color: #07c160; }
+.badge-off { background: #f5f5f5; color: #999; }
+.hidden { display: none; }
+textarea { width: 100%; padding: 8px 12px; border: 1px solid #d9d9d9; border-radius: 6px; font-size: 14px; font-family: monospace; resize: vertical; min-height: 80px; }
+textarea:focus { outline: none; border-color: #07c160; }
+.tokencopy { font-family: monospace; font-size: 13px; word-break: break-all; background: #f5f5f5; padding: 8px 12px; border-radius: 4px; margin: 8px 0; }
+.code { background: #f5f5f5; padding: 2px 6px; border-radius: 3px; font-family: monospace; font-size: 13px; }
 </style>
 </head>
 <body>
-<div class="toast" id="toast"></div>
-<div class="container">
-  <h1><span class="logo">W</span> WxClawbotPush</h1>
-
-  <!-- 状态卡片 -->
-  <div class="card">
-    <div class="card-title">系统状态</div>
-    <div id="status-area">加载中...</div>
-  </div>
-
-  <!-- 二维码卡片 -->
-  <div class="card" id="qrcode-card" style="display:none;">
-    <div class="card-title">扫码登录</div>
-    <div class="qrcode-container">
-      <img id="qrcode-img" src="" alt="微信扫码登录">
-    </div>
-    <p class="hint" style="text-align:center;margin-top:8px;">请使用微信扫一扫完成登录</p>
-    <p class="hint" style="text-align:center;">二维码有效期约 4 分钟</p>
-  </div>
-
-  <!-- 操作按钮 -->
-  <div class="card">
-    <div class="card-title">操作</div>
-    <button class="btn btn-primary" id="btn-qrcode">获取登录二维码</button>
-    <button class="btn btn-danger" id="btn-logout" style="margin-left:8px;">退出登录</button>
-    <button class="btn btn-outline" id="btn-refresh-status" style="margin-left:8px;">刷新状态</button>
-  </div>
-
-  <!-- 日志卡片 -->
-  <div class="card">
-    <div class="card-title">
-      运行日志
-      <button class="btn btn-outline" id="btn-clear-logs" style="float:right;font-size:12px;padding:4px 10px;">清空</button>
-    </div>
-    <div id="log-area" style="max-height:400px;overflow-y:auto;">加载中...</div>
+<div class="header">
+  <h1>WxClawBotPush</h1>
+  <div class="right">
+    <span id="headerUser"></span>
+    <button onclick="logout()">退出</button>
   </div>
 </div>
-
+<div class="container" id="app"></div>
 <script>
-function toast(msg) { var t=document.getElementById('toast'); t.textContent=msg; t.style.display='block'; setTimeout(function(){t.style.display='none';},2000); }
-function api(path, opts) { return fetch(path, opts).then(function(r){ return r.json(); }); }
+var token = localStorage.getItem('token');
+if (!token) window.location.href = '/login.html';
+var api = function(url, opts) {
+  opts = opts || {};
+  opts.headers = Object.assign({}, opts.headers || {}, {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token});
+  return fetch(url, opts).then(function(r) { return r.json(); });
+};
 
-function refreshStatus() {
-  api('/api/status').then(function(s){
-    var area = document.getElementById('status-area');
-    var conn = s.connected;
-    area.innerHTML =
-      '<p>连接状态：<span class="status-dot '+(conn?'on':'off')+'"></span>'+(conn?'已连接':'未连接')+'</p>'+
-      '<p>账号ID：'+(s.account_id||'-')+'</p>'+
-      '<p>已连接用户数：'+(s.known_users||0)+'</p>'+
-      '<p>二维码状态：'+(s.qrcode_status||'none')+'</p>'+
-      '<p style="margin-top:8px;">Webhook 地址：<code>'+window.location.protocol+'//'+window.location.host+'/webhook</code></p>';
-    var qrCard = document.getElementById('qrcode-card');
-    if (!conn && s.qrcode) {
-      qrCard.style.display = '';
-      var img = document.getElementById('qrcode-img');
-      img.src = '/api/qrcode/image?t='+Date.now();
-    } else if (conn) {
-      qrCard.style.display = 'none';
-    }
-  });
+async function load() {
+  var resp = await api('/api/user/config');
+  if (resp.detail && resp.detail.indexOf('登录') >= 0) { window.location.href = '/login.html'; return; }
+
+  var statusResp = await api('/api/user/status');
+  var statsResp = await api('/api/admin/stats');
+  var isAdmin = statsResp.total_users !== undefined;
+
+  document.getElementById('headerUser').textContent = '';
+
+  var html = '';
+  if (isAdmin) {
+    html += renderAdminPanel(resp, statusResp, statsResp);
+  }
+  html += renderUserPanel(resp, statusResp);
+
+  document.getElementById('app').innerHTML = html;
+  if (isAdmin) loadUsers();
 }
 
-function refreshLogs() {
-  api('/api/logs').then(function(d){
-    var area = document.getElementById('log-area');
-    area.innerHTML = d.logs.map(function(l){
-      return '<div class="log-entry"><span class="log-time">'+l.time+'</span><span class="log-'+l.level+'">['+l.level+'] '+l.message+'</span></div>';
-    }).reverse().join('');
-  });
+function renderAdminPanel(cfg, status, stats) {
+  return '<div class="card">' +
+    '<h2>系统看板</h2>' +
+    '<table><tr><td>总用户</td><td>' + stats.total_users + '</td><td>今日消息</td><td>' + stats.today_messages + '</td><td>总消息</td><td>' + stats.total_messages + '</td></tr></table>' +
+    '<div style="margin-top:16px">' +
+      '<input type="checkbox" id="regToggle" onchange="toggleReg(this.checked)">' +
+      '<label for="regToggle" style="font-size:14px">开放注册</label>' +
+    '</div>' +
+    '<h2 style="margin-top:20px">用户管理</h2>' +
+    '<div id="userList"></div>' +
+    '<div class="form-row" style="margin-top:12px">' +
+      '<input type="text" id="newUsername" placeholder="用户名">' +
+      '<input type="password" id="newPassword" placeholder="密码">' +
+      '<button class="btn btn-green" onclick="createUser()">创建用户</button>' +
+    '</div>' +
+  '</div>';
 }
 
+function renderUserPanel(cfg, status) {
+  var html = '<div class="card"><h2>个人设置</h2>';
+  if (status.connected) {
+    html += '<p style="color:#07c160;font-size:14px">微信已连接 (' + (status.account_id || '未知账号') + ')</p>';
+    html += '<p style="font-size:13px;color:#666;margin-top:4px">已知联系人: ' + status.known_users + ' 个</p>';
+    html += '<button class="btn btn-red" style="margin-left:8px" onclick="logoutBot()">断开微信</button>';
+  } else {
+    html += '<p style="color:#999;font-size:14px">微信未连接</p>';
+    html += '<button class="btn btn-green" onclick="getQrCode()">扫码登录</button>';
+  }
+  html += '<div id="qrcodeArea" style="margin-top:12px"></div>';
 
-document.getElementById('btn-qrcode').addEventListener('click', function(){
-  var btn = this; btn.disabled = true; btn.textContent = '获取中...';
-  api('/api/qrcode').then(function(r){
-    btn.disabled = false; btn.textContent = '获取登录二维码';
-    if (r.success) {
-      toast('二维码已生成，请扫码');
-      refreshStatus();
-    } else {
-      toast('获取失败: '+(r.message||'未知错误'));
+  html += '<h2 style="margin-top:24px">Webhook Token</h2>';
+  html += '<div class="tokencopy">' + cfg.webhook_token + '</div>';
+  html += '<button class="btn btn-green" onclick="resetToken()">重置 Token</button>';
+  html += '<p style="font-size:12px;color:#999;margin-top:4px">推送地址: <span class="code">GET/POST /webhook?token=' + cfg.webhook_token + '</span></p>';
+
+  html += '<h2 style="margin-top:24px">消息模板</h2>';
+  html += '<textarea id="templateInput">' + (cfg.message_template || '') + '</textarea>';
+  html += '<button class="btn btn-green" style="margin-top:8px" onclick="saveTemplate()">保存模板</button>';
+  html += '<p style="font-size:12px;color:#999;margin-top:4px">占位符: <span class="code">{{ field }}</span> 支持嵌套如 <span class="code">{{ alert.name }}</span></p>';
+
+  html += '<h2 style="margin-top:24px">推送日志</h2><div id="logArea"></div></div>';
+  return html;
+}
+
+async function loadUsers() {
+  var resp = await api('/api/admin/users');
+  var users = resp.users || [];
+  document.getElementById('userList').innerHTML = '<table><tr><th>ID</th><th>用户名</th><th>角色</th><th>状态</th><th>微信</th><th>创建时间</th><th>操作</th></tr>' +
+    users.map(function(u) { return '<tr>' +
+      '<td>' + u.id + '</td><td>' + u.username + '</td>' +
+      '<td>' + (u.is_admin ? '管理员' : '用户') + '</td>' +
+      '<td><span class="badge ' + (u.is_disabled ? 'badge-off' : 'badge-on') + '">' + (u.is_disabled ? '已禁用' : '正常') + '</span></td>' +
+      '<td><span class="badge ' + (u.is_connected ? 'badge-on' : 'badge-off') + '">' + (u.is_connected ? '已连接' : '未连接') + '</span></td>' +
+      '<td>' + u.created_at + '</td>' +
+      '<td>' +
+        '<button onclick="toggleUser(' + u.id + ', ' + (!u.is_disabled) + ')">' + (u.is_disabled ? '启用' : '禁用') + '</button>' +
+        '<button onclick="deleteUser(' + u.id + ')" style="color:#e74c3c;margin-left:4px">删除</button>' +
+      '</td>' +
+    '</tr>'; }).join('') +
+  '</table>';
+}
+
+async function getQrCode() {
+  try {
+    var resp = await api('/api/user/qrcode');
+    if (resp.qrcode_url) {
+      document.getElementById('qrcodeArea').innerHTML = '<p style="font-size:13px;color:#666;margin-bottom:8px">请用微信扫描二维码</p><img src="/api/user/qrcode/image?t=' + Date.now() + '" style="width:280px;height:280px" onerror="setTimeout(getQrCode, 3000)">';
     }
-  });
-});
+  } catch(e) {}
+}
 
-document.getElementById('btn-logout').addEventListener('click', function(){
-  if (!confirm('确定要退出登录吗？退出后 Webhook 将无法转发消息。')) return;
-  api('/api/logout', { method:'POST' }).then(function(r){
-    if (r.success) { toast('已退出登录'); refreshStatus(); } else { toast('退出失败'); }
-  });
-});
+async function logoutBot() {
+  await api('/api/user/logout', { method: 'POST' });
+  location.reload();
+}
 
-document.getElementById('btn-refresh-status').addEventListener('click', function(){ refreshStatus(); refreshLogs(); });
-document.getElementById('btn-clear-logs').addEventListener('click', function(){
-  api('/api/logs/clear', { method:'POST' }).then(function(r){ if (r.success) { toast('日志已清空'); refreshLogs(); } });
-});
+async function resetToken() {
+  var resp = await api('/api/user/token', { method: 'POST' });
+  location.reload();
+}
 
-refreshStatus(); refreshLogs();
-setInterval(function(){ refreshStatus(); refreshLogs(); }, 15000);
+async function saveTemplate() {
+  var tpl = document.getElementById('templateInput').value;
+  await api('/api/user/config', { method: 'PUT', body: JSON.stringify({ message_template: tpl }) });
+  alert('模板已保存');
+}
+
+async function toggleReg(v) {
+  await api('/api/admin/config', { method: 'PUT', body: JSON.stringify({ registration_open: v ? '1' : '0' }) });
+}
+
+async function createUser() {
+  var username = document.getElementById('newUsername').value;
+  var password = document.getElementById('newPassword').value;
+  if (!username || !password) { alert('请填写用户名和密码'); return; }
+  await api('/api/admin/users', { method: 'POST', body: JSON.stringify({ username: username, password: password }) });
+  loadUsers();
+}
+
+async function toggleUser(id, disabled) {
+  await api('/api/admin/users/' + id, { method: 'PUT', body: JSON.stringify({ is_disabled: disabled ? 1 : 0 }) });
+  loadUsers();
+}
+
+async function deleteUser(id) {
+  if (!confirm('确定删除该用户？')) return;
+  await api('/api/admin/users/' + id, { method: 'DELETE' });
+  loadUsers();
+}
+
+async function loadLogs() {
+  var resp = await api('/api/user/logs');
+  var logs = resp.logs || [];
+  document.getElementById('logArea').innerHTML = logs.slice(0, 20).map(function(l) {
+    return '<div style="font-size:12px;color:#666;padding:4px 0;border-bottom:1px solid #f5f5f5"><span class="badge ' + (l.status === 'ok' ? 'badge-on' : 'badge-off') + '">' + l.status + '</span> ' + l.target_user + ' <span style="float:right">' + l.created_at + '</span></div>';
+  }).join('') || '<p style="font-size:13px;color:#999">暂无推送记录</p>';
+}
+
+function logout() {
+  api('/api/logout', { method: 'POST' });
+  localStorage.removeItem('token');
+  window.location.href = '/login.html';
+}
+
+load();
+setTimeout(function() { if (document.getElementById('logArea')) loadLogs(); }, 500);
 </script>
 </body>
 </html>

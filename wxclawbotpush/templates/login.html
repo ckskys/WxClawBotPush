@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WxClawBotPush - 登录</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+.card { background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); padding: 32px; width: 360px; }
+h1 { text-align: center; margin-bottom: 24px; font-size: 20px; color: #1a1a1a; }
+label { display: block; margin-bottom: 4px; font-size: 14px; color: #555; }
+input { width: 100%; padding: 8px 12px; border: 1px solid #d9d9d9; border-radius: 6px; font-size: 14px; margin-bottom: 16px; }
+input:focus { outline: none; border-color: #07c160; box-shadow: 0 0 0 2px rgba(7,193,96,0.2); }
+.btn { width: 100%; padding: 10px; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; }
+.btn-primary { background: #07c160; color: #fff; }
+.btn-primary:hover { background: #06ad56; }
+.error { color: #e74c3c; font-size: 13px; margin-bottom: 12px; text-align: center; }
+.tabs { display: flex; margin-bottom: 20px; border-bottom: 2px solid #eee; }
+.tab { flex: 1; text-align: center; padding: 8px; cursor: pointer; font-size: 14px; color: #999; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+.tab.active { color: #07c160; border-bottom-color: #07c160; }
+.hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>WxClawBotPush</h1>
+  <div class="tabs">
+    <div class="tab active" data-tab="login">登录</div>
+    <div class="tab" data-tab="register">注册</div>
+  </div>
+  <div id="error" class="error hidden"></div>
+  <form id="loginForm">
+    <label>用户名</label>
+    <input type="text" id="username" autocomplete="username" required minlength="3">
+    <label>密码</label>
+    <input type="password" id="password" autocomplete="current-password" required minlength="6">
+    <button type="submit" class="btn btn-primary">登录</button>
+  </form>
+  <form id="registerForm" class="hidden">
+    <label>用户名</label>
+    <input type="text" id="regUsername" required minlength="3">
+    <label>密码</label>
+    <input type="password" id="regPassword" required minlength="6">
+    <button type="submit" class="btn btn-primary">注册</button>
+  </form>
+</div>
+<script>
+var tabs = document.querySelectorAll('.tab');
+tabs.forEach(function(t) { t.addEventListener('click', function() {
+  tabs.forEach(function(x) { x.classList.remove('active'); });
+  t.classList.add('active');
+  var isLogin = t.dataset.tab === 'login';
+  document.getElementById('loginForm').classList.toggle('hidden', !isLogin);
+  document.getElementById('registerForm').classList.toggle('hidden', isLogin);
+  document.getElementById('error').classList.add('hidden');
+});});
+
+document.getElementById('loginForm').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  var username = document.getElementById('username').value;
+  var password = document.getElementById('password').value;
+  var resp = await fetch('/api/login', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({username: username, password: password}) });
+  var data = await resp.json();
+  if (resp.ok) {
+    localStorage.setItem('token', data.token);
+    window.location.href = '/admin';
+  } else {
+    var err = document.getElementById('error');
+    err.textContent = data.detail || '登录失败';
+    err.classList.remove('hidden');
+  }
+});
+
+document.getElementById('registerForm').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  var username = document.getElementById('regUsername').value;
+  var password = document.getElementById('regPassword').value;
+  var resp = await fetch('/api/register', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({username: username, password: password}) });
+  var data = await resp.json();
+  if (resp.ok) {
+    localStorage.setItem('token', data.token);
+    window.location.href = '/admin';
+  } else {
+    var err = document.getElementById('error');
+    err.textContent = data.detail || '注册失败';
+    err.classList.remove('hidden');
+  }
+});
+</script>
+</body>
+</html>
