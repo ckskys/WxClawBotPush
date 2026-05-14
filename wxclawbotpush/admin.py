@@ -11,7 +11,7 @@ from fastapi.responses import HTMLResponse, PlainTextResponse, Response
 
 from config import get_system_config, set_system_config, get_user_config, save_user_config, init_user_config
 from database import get_db
-from auth import create_user, authenticate, create_session, get_session_user, delete_session, get_user, is_admin, verify_password, hash_password
+from auth import create_user, authenticate, create_session, get_session_user, delete_session, get_user, is_admin, verify_password, hash_password, SESSION_TIMEOUT
 from client import get_client, close_client, get_qr_code_data, clear_qr_code_data
 from log_utils import log_buffer, log_buffer_lock
 from ilink.client import ILinkClient
@@ -45,8 +45,8 @@ def _require_admin(request: Request) -> int:
 # ── 认证路由 ───────────────────────────────────────────────
 
 @router.post("/api/login")
-def api_login(body: dict):
-    """用户登录：验证用户名密码，返回 session token。"""
+def api_login(body: dict, response: Response):
+    """用户登录：验证用户名密码，返回 session token 并设置 Cookie。"""
     username = (body or {}).get("username", "")
     password = (body or {}).get("password", "")
     user_id = authenticate(username, password)
@@ -58,11 +58,16 @@ def api_login(body: dict):
         raise HTTPException(status_code=403, detail="账号已禁用")
 
     token = create_session(user_id)
+    response.set_cookie(
+        key="session", value=token,
+        max_age=SESSION_TIMEOUT, httponly=True,
+        samesite="strict", secure=False,
+    )
     return {"token": token, "user_id": user_id, "is_admin": user["is_admin"] if user else False}
 
 
 @router.post("/api/register")
-def api_register(body: dict):
+def api_register(body: dict, response: Response):
     """用户注册：需系统开放注册，用户名 ≥3 位，密码 ≥6 位。"""
     if get_system_config("registration_open", "1") != "1":
         raise HTTPException(status_code=403, detail="注册功能暂未开放")
@@ -77,17 +82,23 @@ def api_register(body: dict):
     if not user_id:
         raise HTTPException(status_code=409, detail="用户名已存在")
     token = create_session(user_id)
+    response.set_cookie(
+        key="session", value=token,
+        max_age=SESSION_TIMEOUT, httponly=True,
+        samesite="strict", secure=False,
+    )
     return {"token": token, "user_id": user_id, "is_admin": False}
 
 
 @router.post("/api/logout")
-def api_logout(request: Request):
-    """退出登录：删除 session token。"""
+def api_logout(request: Request, response: Response):
+    """退出登录：删除 session token 并清除 Cookie。"""
     token = request.headers.get("Authorization", "").removeprefix("Bearer ")
     if not token:
         token = request.cookies.get("session")
     if token:
         delete_session(token)
+    response.delete_cookie(key="session")
     return {"success": True}
 
 
@@ -354,7 +365,7 @@ def user_change_password(request: Request, body: dict):
 
 
 @router.post("/api/user/deactivate")
-def user_deactivate(request: Request):
+def user_deactivate(request: Request, response: Response):
     """注销当前账号：删除所有关联数据并清除会话。"""
     user_id = _require_session(request)
     stop_polling(user_id)
@@ -365,6 +376,7 @@ def user_deactivate(request: Request):
         token = request.cookies.get("session")
     if token:
         delete_session(token)
+    response.delete_cookie(key="session")
     db = get_db()
     db.execute("DELETE FROM push_logs WHERE user_id = ?", (user_id,))
     db.execute("DELETE FROM user_configs WHERE user_id = ?", (user_id,))
