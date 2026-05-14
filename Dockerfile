@@ -9,10 +9,10 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app/ /app/
+COPY wxclawbotpush/ /app/
 
 RUN mkdir -p /data
 
 EXPOSE 8099
 
-CMD ["sh", "-c", "exec uvicorn main:app --host 0.0.0.0 --port ${WEBHOOK_PORT}"]
+CMD ["sh", "-c", "exec uvicorn app:app --host 0.0.0.0 --port ${WEBHOOK_PORT}"]
