@@ -149,7 +149,6 @@ curl "http://你的IP:8000/webhook?token=YOUR_TOKEN&msg=备份任务已完成"
 - 扫码登录 / 断开微信
 - 查看 Webhook Token 和推送地址
 - 编辑消息模板
-- 查看个人推送日志
 
 ## 命令行工具
 

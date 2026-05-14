@@ -50,9 +50,10 @@ textarea:focus { outline: none; border-color: #07c160; }
 var token = localStorage.getItem('token');
 if (!token) window.location.href = '/login.html';
 
-var qrPollTimer = null;   // 扫码状态轮询定时器
-var refreshTimer = null;  // 页面数据刷新定时器
-var isAdmin = false;      // 是否为管理员
+var qrPollTimer = null;      // 扫码状态轮询定时器
+var qrPollCount = 0;        // 轮询次数（2s * 90 = 3分钟超时）
+var QR_POLL_MAX = 90;       // 最大轮询次数
+var isAdmin = false;        // 是否为管理员
 
 // API 请求封装（自动携带 Authorization header）
 var api = function(url, opts) {
@@ -81,10 +82,6 @@ async function load() {
 
   document.getElementById('app').innerHTML = html;
   if (isAdmin) loadUsers();
-
-  // 启动页面数据定时刷新（15 秒一次）
-  if (refreshTimer) clearInterval(refreshTimer);
-  refreshTimer = setInterval(refreshAll, 15000);
 }
 
 // ── 管理员面板渲染 ──────────────────────────────────────────
@@ -156,63 +153,18 @@ function renderUserPanel(cfg, status) {
   return html;
 }
 
-// ── 数据刷新逻辑 ────────────────────────────────────────────
-
-/* 定时刷新：更新连接状态、日志、管理员数据，不引起页面闪烁 */
-async function refreshAll() {
-  // 刷新微信连接状态
-  try {
-    var statusResp = await api('/api/user/status');
-    refreshConnectionUI(statusResp);
-  } catch(e) {}
-
-  // 管理员：刷新系统看板和用户列表
-  if (isAdmin) {
-    try {
-      var statsResp = await api('/api/admin/stats');
-      if (statsResp.total_users !== undefined) {
-        refreshStatsUI(statsResp);
-        loadUsers();
-      }
-    } catch(e) {}
-  }
-}
-
-/* 仅更新连接状态区域，不重绘整个面板 */
-function refreshConnectionUI(status) {
-  var connEl = document.getElementById('connectionStatus');
-  if (!connEl) return;
-
-  if (status.connected) {
-    connEl.innerHTML =
-      '<p style="color:#07c160;font-size:14px">微信已连接 (' + (status.account_id || '未知账号') + ')</p>' +
-      '<p style="font-size:13px;color:#666;margin-top:4px">已知联系人: <span id="knownUsersCount">' + (status.known_users || 0) + '</span> 个</p>' +
-      '<button class="btn btn-red" onclick="logoutBot()">断开微信</button>';
-    // 扫码成功后停止轮询并清除二维码
-    if (qrPollTimer) {
-      clearInterval(qrPollTimer);
-      qrPollTimer = null;
-      document.getElementById('qrcodeArea').innerHTML = '';
-    }
-  } else {
-    connEl.innerHTML =
-      '<p style="color:#999;font-size:14px">微信未连接</p>' +
-      '<button class="btn btn-green" onclick="getQrCode()">扫码登录</button>';
-  }
-}
-
-/* 仅更新系统看板统计数字 */
-function refreshStatsUI(stats) {
-  var el = document.getElementById('statsTable');
-  if (!el) return;
-  el.innerHTML =
-    '<table><tr><td>总用户</td><td>' + stats.total_users + '</td></tr></table>';
-}
-
 // ── 二维码扫码状态轮询 ──────────────────────────────────────
 
-/* 每 2 秒检查一次扫码状态，连接成功后自动刷新页面 */
+/* 每 2 秒检查一次扫码状态，连接成功后自动刷新页面，3 分钟后超时停止 */
 async function pollQrStatus() {
+  qrPollCount++;
+  if (qrPollCount >= QR_POLL_MAX) {
+    clearInterval(qrPollTimer);
+    qrPollTimer = null;
+    document.getElementById('qrcodeArea').innerHTML =
+      '<p style="font-size:13px;color:#e74c3c">二维码已过期，请重新获取</p>';
+    return;
+  }
   try {
     var resp = await api('/api/user/status');
     if (resp.connected) {
@@ -222,6 +174,17 @@ async function pollQrStatus() {
     }
   } catch(e) {}
 }
+
+// 页面切到后台时暂停轮询，切回时继续
+document.addEventListener('visibilitychange', function() {
+  if (!qrPollTimer) return;
+  if (document.hidden) {
+    clearInterval(qrPollTimer);
+    qrPollTimer = null;
+  } else {
+    qrPollTimer = setInterval(pollQrStatus, 2000);
+  }
+});
 
 // ── 用户操作 ────────────────────────────────────────────────
 
@@ -234,6 +197,7 @@ async function getQrCode() {
         '<img src="/api/user/qrcode/image?t=' + Date.now() + '" style="width:280px;height:280px" onerror="setTimeout(getQrCode, 3000)">';
       // 启动扫码状态轮询
       if (qrPollTimer) clearInterval(qrPollTimer);
+      qrPollCount = 0;
       qrPollTimer = setInterval(pollQrStatus, 2000);
     }
   } catch(e) {}
@@ -253,6 +217,14 @@ async function saveTemplate() {
   var tpl = document.getElementById('templateInput').value;
   await api('/api/user/config', { method: 'PUT', body: JSON.stringify({ message_template: tpl }) });
   alert('模板已保存');
+}
+
+async function loadStats() {
+  var resp = await api('/api/admin/stats');
+  if (resp.total_users !== undefined) {
+    document.getElementById('statsTable').innerHTML =
+      '<table><tr><td>总用户</td><td>' + resp.total_users + '</td></tr></table>';
+  }
 }
 
 async function loadUsers() {
@@ -285,6 +257,7 @@ async function createUser() {
   if (!username || !password) { alert('请填写用户名和密码'); return; }
   await api('/api/admin/users', { method: 'POST', body: JSON.stringify({ username: username, password: password }) });
   loadUsers();
+  loadStats();
 }
 
 async function toggleUser(id, disabled) {
@@ -296,6 +269,7 @@ async function deleteUser(id) {
   if (!confirm('确定删除该用户？')) return;
   await api('/api/admin/users/' + id, { method: 'DELETE' });
   loadUsers();
+  loadStats();
 }
 
 // ── 个人设置操作 ────────────────────────────────────────────
