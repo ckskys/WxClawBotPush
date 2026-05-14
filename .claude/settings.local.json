@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(git add *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(/c/Users/cksky/AppData/Local/Python/bin/python.exe -c ' *)",
+      "Bash(/c/Users/cksky/AppData/Local/Python/bin/python.exe -m pip install bcrypt)"
     ]
   }
 }
