@@ -1,23 +1,36 @@
 import json
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, HTTPException, Request
 
-from config import get_config
+from config import get_user_config
+from database import get_db
+from template import render_template
 from client import get_client
 
 logger = logging.getLogger("wxclawbotpush")
 router = APIRouter()
 
 
+def _find_user_by_token(token: str) -> Optional[int]:
+    db = get_db()
+    row = db.execute("SELECT user_id FROM user_configs WHERE webhook_token = ?", (token,)).fetchone()
+    return row["user_id"] if row else None
+
+
+def _get_token_from_request(request: Request) -> Optional[str]:
+    token = request.query_params.get("token")
+    if token:
+        return token
+    return request.headers.get("X-Token") or request.headers.get("x-token")
+
+
 def parse_webhook_payload(data: Dict[str, Any]) -> str:
     parts = []
-
     title = data.get("title") or data.get("subject") or data.get("summary")
     if title:
         parts.append(str(title))
-
     text = (
         data.get("text")
         or data.get("content")
@@ -31,29 +44,31 @@ def parse_webhook_payload(data: Dict[str, Any]) -> str:
         if isinstance(text, (dict, list)):
             text = json.dumps(text, ensure_ascii=False, indent=2)
         parts.append(str(text))
-
     link = data.get("link") or data.get("url") or data.get("href")
     if link:
         parts.append(str(link))
-
     if not parts:
         parts.append(json.dumps(data, ensure_ascii=False, indent=2))
-
     return "\n".join(parts)
 
 
-def _broadcast_to_users(cfg: dict, message_text: str) -> dict:
+def _broadcast_to_users(user_id: int, message_text: str) -> dict:
+    cfg = get_user_config(user_id)
     known_users = list(cfg.get("known_users") or [])
     if not known_users:
         raise HTTPException(status_code=503, detail="没有已知微信用户，请先向机器人发送一条消息")
 
-    client = get_client()
+    if not cfg.get("bot_token"):
+        raise HTTPException(status_code=503, detail="微信未登录，请先扫码登录")
+
+    client = get_client(user_id)
     results = {}
-    for user_id in known_users:
-        ctx_token = (cfg.get("user_context_tokens") or {}).get(user_id)
-        ok = client.send_text(user_id, message_text, context_token=ctx_token)
-        results[user_id] = "ok" if ok else "fail"
-        logger.info(f"Webhook 转发: user={user_id}, status={'ok' if ok else 'fail'}")
+    for target_user in known_users:
+        ctx_token = (cfg.get("context_tokens") or {}).get(target_user)
+        ok = client.send_text(target_user, message_text, context_token=ctx_token)
+        results[target_user] = "ok" if ok else "fail"
+        logger.info(f"Webhook 转发: user_id={user_id}, target={target_user}, status={'ok' if ok else 'fail'}")
+        _log_push(user_id, target_user, "ok" if ok else "fail")
 
     all_ok = all(v == "ok" for v in results.values())
     return {
@@ -63,41 +78,25 @@ def _broadcast_to_users(cfg: dict, message_text: str) -> dict:
     }
 
 
-@router.get("/webhook")
-async def webhook_get_handler(request: Request):
-    cfg = get_config()
-    if not cfg.get("bot_token"):
-        raise HTTPException(status_code=503, detail="微信未登录，请先扫码登录")
-
-    query_params = dict(request.query_params)
-    message_text = query_params.pop("msg", "")
-    if query_params:
-        message_text += "\n\n" + json.dumps(query_params, ensure_ascii=False, indent=2)
-    if not message_text:
-        raise HTTPException(status_code=400, detail="缺少 msg 参数")
-
-    return _broadcast_to_users(cfg, message_text)
+def _log_push(user_id: int, target_user: str, status: str):
+    db = get_db()
+    db.execute(
+        "INSERT INTO push_logs (user_id, target_user, status) VALUES (?, ?, ?)",
+        (user_id, target_user, status),
+    )
+    db.commit()
 
 
-@router.post("/webhook")
-async def webhook_post_handler(request: Request):
-    cfg = get_config()
-    if not cfg.get("bot_token"):
-        raise HTTPException(status_code=503, detail="微信未登录，请先扫码登录")
-
+def _build_message_text(request: Request, body: Any) -> str:
     message_text = ""
-
     query_params = dict(request.query_params)
+
     if "msg" in query_params:
         message_text = query_params["msg"]
-        extra = {k: v for k, v in query_params.items() if k != "msg"}
+        extra = {k: v for k, v in query_params.items() if k != "msg" and k != "token"}
         if extra:
             message_text += "\n\n" + json.dumps(extra, ensure_ascii=False, indent=2)
-
-    try:
-        body = await request.json()
-    except Exception:
-        body = None
+        return message_text
 
     if body:
         if isinstance(body, list):
@@ -109,10 +108,56 @@ async def webhook_post_handler(request: Request):
         elif isinstance(body, dict):
             msg = parse_webhook_payload(body)
             if msg:
-                message_text += ("\n---\n" if message_text else "") + msg
+                message_text = msg
         elif isinstance(body, str):
-            if body:
-                message_text += ("\n" if message_text else "") + body
+            message_text = body
+    return message_text
+
+
+@router.get("/webhook")
+async def webhook_get_handler(request: Request):
+    token = _get_token_from_request(request)
+    if not token:
+        raise HTTPException(status_code=401, detail="缺少 token 鉴权参数")
+    user_id = _find_user_by_token(token)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="无效的 token")
+
+    query_params = dict(request.query_params)
+    message_text = query_params.pop("msg", "")
+    extra = {k: v for k, v in query_params.items() if k != "token"}
+    if extra:
+        message_text += "\n\n" + json.dumps(extra, ensure_ascii=False, indent=2)
+    if not message_text.strip():
+        raise HTTPException(status_code=400, detail="缺少 msg 参数")
+
+    cfg = get_user_config(user_id)
+    template = cfg.get("message_template")
+    if template:
+        try:
+            data = {"msg": message_text, "title": message_text, "text": message_text}
+            message_text = render_template(template, data)
+        except Exception:
+            pass
+
+    return _broadcast_to_users(user_id, message_text)
+
+
+@router.post("/webhook")
+async def webhook_post_handler(request: Request):
+    token = _get_token_from_request(request)
+    if not token:
+        raise HTTPException(status_code=401, detail="缺少 token 鉴权参数")
+    user_id = _find_user_by_token(token)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="无效的 token")
+
+    try:
+        body = await request.json()
+    except Exception:
+        body = None
+
+    message_text = _build_message_text(request, body)
 
     if not message_text:
         raw = await request.body()
@@ -125,4 +170,12 @@ async def webhook_post_handler(request: Request):
     if not message_text:
         raise HTTPException(status_code=400, detail="消息内容为空")
 
-    return _broadcast_to_users(cfg, message_text)
+    cfg = get_user_config(user_id)
+    template = cfg.get("message_template")
+    if template and isinstance(body, dict):
+        try:
+            message_text = render_template(template, body)
+        except Exception:
+            pass
+
+    return _broadcast_to_users(user_id, message_text)

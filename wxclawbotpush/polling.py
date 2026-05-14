@@ -1,113 +1,120 @@
 import logging
 import threading
 import time
-from typing import Optional
+from typing import Dict
 
-from config import get_config, save_config
-from client import get_client, recreate_client, _qr_code_data
+from config import get_user_config, save_user_config
+from client import get_client, recreate_client, get_qr_code_data
 from ilink.client import ILinkClient
 
 logger = logging.getLogger("wxclawbotpush")
 
-_polling_active = False
-_polling_thread: Optional[threading.Thread] = None
+_polling_threads: Dict[int, threading.Thread] = {}
+_polling_flags: Dict[int, bool] = {}
 
 
-def start_polling():
-    global _polling_active, _polling_thread
-    if _polling_thread and _polling_thread.is_alive():
+def start_polling(user_id: int):
+    if user_id in _polling_threads and _polling_threads[user_id].is_alive():
         return
-    _polling_active = True
-    _polling_thread = threading.Thread(target=_poll_incoming_messages, daemon=True)
-    _polling_thread.start()
-    logger.info("后台消息轮询已启动")
+    _polling_flags[user_id] = True
+    t = threading.Thread(target=_poll_incoming_messages, args=(user_id,), daemon=True)
+    _polling_threads[user_id] = t
+    t.start()
+    logger.info(f"后台消息轮询已启动: user_id={user_id}")
 
 
-def stop_polling():
-    global _polling_active
-    _polling_active = False
-    logger.info("后台消息轮询已停止")
+def stop_polling(user_id: int):
+    _polling_flags[user_id] = False
+    logger.info(f"后台消息轮询已停止: user_id={user_id}")
 
 
-def _poll_incoming_messages():
-    global _polling_active
+def stop_all_polling():
+    for uid in list(_polling_flags.keys()):
+        _polling_flags[uid] = False
+    logger.info("所有轮询已停止")
 
-    while _polling_active:
+
+def is_polling(user_id: int) -> bool:
+    return _polling_flags.get(user_id, False)
+
+
+def _poll_incoming_messages(user_id: int):
+    while _polling_flags.get(user_id, False):
         try:
-            client = get_client()
-            if not client.bot_token:
+            client = get_client(user_id)
+            cfg = get_user_config(user_id)
+            if not cfg.get("bot_token"):
                 time.sleep(5)
                 continue
 
             messages, sync_buf, result = client.poll_updates(timeout_seconds=25)
-            if sync_buf != get_config().get("sync_buf"):
-                save_config({"sync_buf": sync_buf})
+            if sync_buf != cfg.get("sync_buf"):
+                save_user_config(user_id, {"sync_buf": sync_buf})
 
             for msg in messages:
-                user_id = msg.user_id
-                cfg = get_config()
-                known_users = list(cfg.get("known_users") or [])
+                user_cfg = get_user_config(user_id)
+                known_users = list(user_cfg.get("known_users") or [])
                 need_save = False
 
-                if user_id not in known_users:
-                    known_users.append(user_id)
-                    logger.info(f"发现新用户: {user_id} (username={msg.username})")
+                if msg.user_id not in known_users:
+                    known_users.append(msg.user_id)
+                    logger.info(f"发现新用户: {msg.user_id} (user_id={user_id})")
                     need_save = True
 
-                ctx_tokens = dict(cfg.get("user_context_tokens") or {})
+                ctx_tokens = dict(user_cfg.get("context_tokens") or {})
                 if msg.context_token:
-                    ctx_tokens[user_id] = msg.context_token
+                    ctx_tokens[msg.user_id] = msg.context_token
                     need_save = True
 
                 if need_save:
-                    save_config({
+                    save_user_config(user_id, {
                         "known_users": known_users,
-                        "user_context_tokens": ctx_tokens,
+                        "context_tokens": ctx_tokens,
                     })
 
         except Exception as e:
-            logger.warning(f"消息轮询异常: {e}")
+            logger.warning(f"消息轮询异常: user_id={user_id}, {e}")
             time.sleep(5)
 
 
-def _poll_qr_code_status(qrcode_id: str):
-    cfg = get_config()
+def _poll_qr_code_status(user_id: int, qrcode_id: str):
+    cfg = get_user_config(user_id)
     base_url = cfg.get("base_url", "https://ilinkai.weixin.qq.com")
     client = ILinkClient(base_url=base_url)
     max_wait = 240
     interval = 3
 
-    global _qr_code_data
+    qr_data = get_qr_code_data(user_id)
     for _ in range(max_wait // interval):
         time.sleep(interval)
         try:
             result = client.get_qrcode_status(str(qrcode_id))
             status = result.get("status", "").lower()
-            _qr_code_data["status"] = status
+            qr_data["status"] = status
 
             if result.get("token"):
                 token = result["token"]
                 account_id = result.get("account_id")
                 resolved_url = result.get("base_url") or base_url
-                save_config({
+                save_user_config(user_id, {
                     "bot_token": token,
                     "account_id": account_id,
                     "base_url": resolved_url,
                     "sync_buf": None,
                 })
-                recreate_client(token=token, account_id=account_id)
-                _qr_code_data["status"] = "connected"
-                logger.info(f"扫码登录成功: account_id={account_id}")
+                recreate_client(user_id, token=token, account_id=account_id)
+                qr_data["status"] = "connected"
+                logger.info(f"扫码登录成功: user_id={user_id}, account_id={account_id}")
                 client.close()
-                start_polling()
+                start_polling(user_id)
                 return
 
             if status in ("expired", "timeout", "canceled", "cancelled"):
-                logger.warning(f"扫码状态: {status}")
+                logger.warning(f"扫码状态: {status}, user_id={user_id}")
                 client.close()
                 return
         except Exception as e:
             logger.warning(f"检测扫码状态异常: {e}")
 
-    _qr_code_data["status"] = "timeout"
+    qr_data["status"] = "timeout"
     client.close()
