@@ -32,7 +32,7 @@ def load_config() -> Dict[str, Any]:
     return cfg
 
 
-def save_config(updates: Dict[str, Any] = None) -> Dict[str, Any]:
+def save_config(updates: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     global _config
     cfg = load_config()
     if updates:
