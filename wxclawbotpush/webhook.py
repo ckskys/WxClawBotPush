@@ -74,7 +74,6 @@ def _broadcast_to_users(user_id: int, message_text: str) -> dict:
         ok = client.send_text(target_user, message_text, context_token=ctx_token)
         results[target_user] = "ok" if ok else "fail"
         logger.info(f"Webhook 转发: user_id={user_id}, target={target_user}, status={'ok' if ok else 'fail'}")
-        _log_push(user_id, target_user, "ok" if ok else "fail")
 
     all_ok = all(v == "ok" for v in results.values())
     return {
@@ -82,16 +81,6 @@ def _broadcast_to_users(user_id: int, message_text: str) -> dict:
         "results": results,
         "message_count": len(known_users),
     }
-
-
-def _log_push(user_id: int, target_user: str, status: str):
-    """记录推送日志到 push_logs 表。"""
-    db = get_db()
-    db.execute(
-        "INSERT INTO push_logs (user_id, target_user, status) VALUES (?, ?, ?)",
-        (user_id, target_user, status),
-    )
-    db.commit()
 
 
 def _build_message_text(request: Request, body: Any) -> str:

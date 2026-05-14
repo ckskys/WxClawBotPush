@@ -46,9 +46,13 @@ textarea:focus { outline: none; border-color: #07c160; }
 </div>
 <div class="container" id="app"></div>
 <script>
-// 登录检查
+// ── 全局状态 ────────────────────────────────────────────────
 var token = localStorage.getItem('token');
 if (!token) window.location.href = '/login.html';
+
+var qrPollTimer = null;   // 扫码状态轮询定时器
+var refreshTimer = null;  // 页面数据刷新定时器
+var isAdmin = false;      // 是否为管理员
 
 // API 请求封装（自动携带 Authorization header）
 var api = function(url, opts) {
@@ -57,14 +61,15 @@ var api = function(url, opts) {
   return fetch(url, opts).then(function(r) { return r.json(); });
 };
 
-// 页面加载：根据角色渲染对应面板
+// ── 页面初始化 ──────────────────────────────────────────────
+
 async function load() {
   var resp = await api('/api/user/config');
   if (resp.detail && resp.detail.indexOf('登录') >= 0) { window.location.href = '/login.html'; return; }
 
   var statusResp = await api('/api/user/status');
   var statsResp = await api('/api/admin/stats');
-  var isAdmin = statsResp.total_users !== undefined;
+  isAdmin = statsResp.total_users !== undefined;
 
   document.getElementById('headerUser').textContent = '';
 
@@ -76,13 +81,20 @@ async function load() {
 
   document.getElementById('app').innerHTML = html;
   if (isAdmin) loadUsers();
+
+  // 启动页面数据定时刷新（15 秒一次）
+  if (refreshTimer) clearInterval(refreshTimer);
+  refreshTimer = setInterval(refreshAll, 15000);
 }
 
-// 管理员面板：系统看板、注册开关、用户列表、创建用户
+// ── 管理员面板渲染 ──────────────────────────────────────────
+
 function renderAdminPanel(cfg, status, stats) {
   return '<div class="card">' +
     '<h2>系统看板</h2>' +
-    '<table><tr><td>总用户</td><td>' + stats.total_users + '</td><td>今日消息</td><td>' + stats.today_messages + '</td><td>总消息</td><td>' + stats.total_messages + '</td></tr></table>' +
+    '<div id="statsTable">' +
+      '<table><tr><td>总用户</td><td>' + stats.total_users + '</td></tr></table>' +
+    '</div>' +
     '<div style="margin-top:16px">' +
       '<input type="checkbox" id="regToggle" onchange="toggleReg(this.checked)">' +
       '<label for="regToggle" style="font-size:14px">开放注册</label>' +
@@ -97,19 +109,22 @@ function renderAdminPanel(cfg, status, stats) {
   '</div>';
 }
 
-// 用户面板：微信连接、Webhook、模板、修改密码、注销、推送日志
+// ── 用户面板渲染 ────────────────────────────────────────────
+
 function renderUserPanel(cfg, status) {
   var html = '<div class="card"><h2>个人设置</h2>';
 
-  // 微信连接状态
+  // 微信连接状态（可刷新的区域）
+  html += '<div id="connectionStatus">';
   if (status.connected) {
     html += '<p style="color:#07c160;font-size:14px">微信已连接 (' + (status.account_id || '未知账号') + ')</p>';
-    html += '<p style="font-size:13px;color:#666;margin-top:4px">已知联系人: ' + status.known_users + ' 个</p>';
-    html += '<button class="btn btn-red" style="margin-left:8px" onclick="logoutBot()">断开微信</button>';
+    html += '<p style="font-size:13px;color:#666;margin-top:4px">已知联系人: <span id="knownUsersCount">' + (status.known_users || 0) + '</span> 个</p>';
+    html += '<button class="btn btn-red" onclick="logoutBot()">断开微信</button>';
   } else {
     html += '<p style="color:#999;font-size:14px">微信未连接</p>';
     html += '<button class="btn btn-green" onclick="getQrCode()">扫码登录</button>';
   }
+  html += '</div>';
   html += '<div id="qrcodeArea" style="margin-top:12px"></div>';
 
   // Webhook Token
@@ -137,12 +152,109 @@ function renderUserPanel(cfg, status) {
   html += '<p style="font-size:13px;color:#999;margin-bottom:8px">注销后所有数据将被永久删除，无法恢复。</p>';
   html += '<button class="btn btn-red" onclick="deactivateAccount()">注销我的账号</button>';
 
-  // 推送日志
-  html += '<h2 style="margin-top:24px">推送日志</h2><div id="logArea"></div></div>';
+  html += '</div>';
   return html;
 }
 
-// 加载用户列表（管理员）
+// ── 数据刷新逻辑 ────────────────────────────────────────────
+
+/* 定时刷新：更新连接状态、日志、管理员数据，不引起页面闪烁 */
+async function refreshAll() {
+  // 刷新微信连接状态
+  try {
+    var statusResp = await api('/api/user/status');
+    refreshConnectionUI(statusResp);
+  } catch(e) {}
+
+  // 管理员：刷新系统看板和用户列表
+  if (isAdmin) {
+    try {
+      var statsResp = await api('/api/admin/stats');
+      if (statsResp.total_users !== undefined) {
+        refreshStatsUI(statsResp);
+        loadUsers();
+      }
+    } catch(e) {}
+  }
+}
+
+/* 仅更新连接状态区域，不重绘整个面板 */
+function refreshConnectionUI(status) {
+  var connEl = document.getElementById('connectionStatus');
+  if (!connEl) return;
+
+  if (status.connected) {
+    connEl.innerHTML =
+      '<p style="color:#07c160;font-size:14px">微信已连接 (' + (status.account_id || '未知账号') + ')</p>' +
+      '<p style="font-size:13px;color:#666;margin-top:4px">已知联系人: <span id="knownUsersCount">' + (status.known_users || 0) + '</span> 个</p>' +
+      '<button class="btn btn-red" onclick="logoutBot()">断开微信</button>';
+    // 扫码成功后停止轮询并清除二维码
+    if (qrPollTimer) {
+      clearInterval(qrPollTimer);
+      qrPollTimer = null;
+      document.getElementById('qrcodeArea').innerHTML = '';
+    }
+  } else {
+    connEl.innerHTML =
+      '<p style="color:#999;font-size:14px">微信未连接</p>' +
+      '<button class="btn btn-green" onclick="getQrCode()">扫码登录</button>';
+  }
+}
+
+/* 仅更新系统看板统计数字 */
+function refreshStatsUI(stats) {
+  var el = document.getElementById('statsTable');
+  if (!el) return;
+  el.innerHTML =
+    '<table><tr><td>总用户</td><td>' + stats.total_users + '</td></tr></table>';
+}
+
+// ── 二维码扫码状态轮询 ──────────────────────────────────────
+
+/* 每 2 秒检查一次扫码状态，连接成功后自动刷新页面 */
+async function pollQrStatus() {
+  try {
+    var resp = await api('/api/user/status');
+    if (resp.connected) {
+      clearInterval(qrPollTimer);
+      qrPollTimer = null;
+      location.reload();
+    }
+  } catch(e) {}
+}
+
+// ── 用户操作 ────────────────────────────────────────────────
+
+async function getQrCode() {
+  try {
+    var resp = await api('/api/user/qrcode');
+    if (resp.qrcode_url) {
+      document.getElementById('qrcodeArea').innerHTML =
+        '<p style="font-size:13px;color:#666;margin-bottom:8px">请用微信扫描二维码（扫描后自动刷新）</p>' +
+        '<img src="/api/user/qrcode/image?t=' + Date.now() + '" style="width:280px;height:280px" onerror="setTimeout(getQrCode, 3000)">';
+      // 启动扫码状态轮询
+      if (qrPollTimer) clearInterval(qrPollTimer);
+      qrPollTimer = setInterval(pollQrStatus, 2000);
+    }
+  } catch(e) {}
+}
+
+async function logoutBot() {
+  await api('/api/user/logout', { method: 'POST' });
+  location.reload();
+}
+
+async function resetToken() {
+  await api('/api/user/token', { method: 'POST' });
+  location.reload();
+}
+
+async function saveTemplate() {
+  var tpl = document.getElementById('templateInput').value;
+  await api('/api/user/config', { method: 'PUT', body: JSON.stringify({ message_template: tpl }) });
+  alert('模板已保存');
+}
+
 async function loadUsers() {
   var resp = await api('/api/admin/users');
   var users = resp.users || [];
@@ -161,41 +273,12 @@ async function loadUsers() {
   '</table>';
 }
 
-// 获取扫码登录二维码
-async function getQrCode() {
-  try {
-    var resp = await api('/api/user/qrcode');
-    if (resp.qrcode_url) {
-      document.getElementById('qrcodeArea').innerHTML = '<p style="font-size:13px;color:#666;margin-bottom:8px">请用微信扫描二维码</p><img src="/api/user/qrcode/image?t=' + Date.now() + '" style="width:280px;height:280px" onerror="setTimeout(getQrCode, 3000)">';
-    }
-  } catch(e) {}
-}
+// ── 管理员操作 ──────────────────────────────────────────────
 
-// 断开微信连接
-async function logoutBot() {
-  await api('/api/user/logout', { method: 'POST' });
-  location.reload();
-}
-
-// 重置 Webhook Token
-async function resetToken() {
-  var resp = await api('/api/user/token', { method: 'POST' });
-  location.reload();
-}
-
-// 保存消息模板
-async function saveTemplate() {
-  var tpl = document.getElementById('templateInput').value;
-  await api('/api/user/config', { method: 'PUT', body: JSON.stringify({ message_template: tpl }) });
-  alert('模板已保存');
-}
-
-// 切换注册开关（管理员）
 async function toggleReg(v) {
   await api('/api/admin/config', { method: 'PUT', body: JSON.stringify({ registration_open: v ? '1' : '0' }) });
 }
 
-// 创建用户（管理员）
 async function createUser() {
   var username = document.getElementById('newUsername').value;
   var password = document.getElementById('newPassword').value;
@@ -204,29 +287,19 @@ async function createUser() {
   loadUsers();
 }
 
-// 禁用/启用用户（管理员）
 async function toggleUser(id, disabled) {
   await api('/api/admin/users/' + id, { method: 'PUT', body: JSON.stringify({ is_disabled: disabled ? 1 : 0 }) });
   loadUsers();
 }
 
-// 删除用户（管理员）
 async function deleteUser(id) {
   if (!confirm('确定删除该用户？')) return;
   await api('/api/admin/users/' + id, { method: 'DELETE' });
   loadUsers();
 }
 
-// 加载推送日志
-async function loadLogs() {
-  var resp = await api('/api/user/logs');
-  var logs = resp.logs || [];
-  document.getElementById('logArea').innerHTML = logs.slice(0, 20).map(function(l) {
-    return '<div style="font-size:12px;color:#666;padding:4px 0;border-bottom:1px solid #f5f5f5"><span class="badge ' + (l.status === 'ok' ? 'badge-on' : 'badge-off') + '">' + l.status + '</span> ' + l.target_user + ' <span style="float:right">' + l.created_at + '</span></div>';
-  }).join('') || '<p style="font-size:13px;color:#999">暂无推送记录</p>';
-}
+// ── 个人设置操作 ────────────────────────────────────────────
 
-// 修改密码
 async function changePassword() {
   var currentPassword = document.getElementById('currentPassword').value;
   var newPassword = document.getElementById('newPassword').value;
@@ -244,7 +317,6 @@ async function changePassword() {
   }
 }
 
-// 注销账号
 async function deactivateAccount() {
   if (!confirm('确定要注销账号吗？所有数据将被永久删除，此操作不可撤销！')) return;
   if (!confirm('再次确认：注销后数据将无法恢复，确定继续？')) return;
@@ -257,15 +329,14 @@ async function deactivateAccount() {
   }
 }
 
-// 退出登录
 function logout() {
   api('/api/logout', { method: 'POST' });
   localStorage.removeItem('token');
   window.location.href = '/login.html';
 }
 
+// ── 启动 ────────────────────────────────────────────────────
 load();
-setTimeout(function() { if (document.getElementById('logArea')) loadLogs(); }, 500);
 </script>
 </body>
 </html>

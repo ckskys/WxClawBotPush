@@ -156,7 +156,6 @@ def admin_delete_user(request: Request, user_id: int):
     _stop_polling(user_id)
     _close_client(user_id)
     db = get_db()
-    db.execute("DELETE FROM push_logs WHERE user_id = ?", (user_id,))
     db.execute("DELETE FROM user_configs WHERE user_id = ?", (user_id,))
     db.execute("DELETE FROM users WHERE id = ?", (user_id,))
     db.commit()
@@ -187,10 +186,6 @@ def admin_get_stats(request: Request):
     _require_admin(request)
     db = get_db()
     total_users = db.execute("SELECT COUNT(*) AS c FROM users").fetchone()["c"]
-    total_messages = db.execute("SELECT COUNT(*) AS c FROM push_logs").fetchone()["c"]
-    today_messages = db.execute(
-        "SELECT COUNT(*) AS c FROM push_logs WHERE date(created_at) = date('now')"
-    ).fetchone()["c"]
     online_users = 0
     try:
         from polling import _polling_flags
@@ -200,8 +195,6 @@ def admin_get_stats(request: Request):
     return {
         "total_users": total_users,
         "online_users": online_users,
-        "total_messages": total_messages,
-        "today_messages": today_messages,
     }
 
 
@@ -319,19 +312,6 @@ def user_logout(request: Request):
     return {"success": True}
 
 
-@router.get("/api/user/logs")
-def user_get_logs(request: Request, limit: int = 200):
-    """获取当前用户的推送日志。"""
-    user_id = _require_session(request)
-    limit = max(1, min(limit, 1000))
-    db = get_db()
-    rows = db.execute(
-        "SELECT target_user, status, created_at FROM push_logs WHERE user_id = ? ORDER BY id DESC LIMIT ?",
-        (user_id, limit),
-    ).fetchall()
-    return {"count": len(rows), "logs": [dict(r) for r in rows]}
-
-
 @router.post("/api/user/token")
 def user_reset_token(request: Request):
     """重置当前用户的 webhook_token。"""
@@ -378,7 +358,6 @@ def user_deactivate(request: Request, response: Response):
         delete_session(token)
     response.delete_cookie(key="session")
     db = get_db()
-    db.execute("DELETE FROM push_logs WHERE user_id = ?", (user_id,))
     db.execute("DELETE FROM user_configs WHERE user_id = ?", (user_id,))
     db.execute("DELETE FROM users WHERE id = ?", (user_id,))
     db.commit()

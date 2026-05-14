@@ -55,14 +55,6 @@ def init_db():
             value TEXT
         );
 
-        CREATE TABLE IF NOT EXISTS push_logs (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id     INTEGER REFERENCES users(id),
-            target_user TEXT,
-            status      TEXT,
-            created_at  TEXT DEFAULT (datetime('now'))
-        );
-
         INSERT OR IGNORE INTO system_config (key, value) VALUES ('registration_open', '1');
     """)
     db.commit()
