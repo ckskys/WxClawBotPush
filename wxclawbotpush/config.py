@@ -1,51 +1,62 @@
 import json
 import os
-from pathlib import Path
 from typing import Any, Dict, Optional
 
-DATA_DIR = Path(os.environ.get("DATA_DIR", "/data"))
-CONFIG_FILE = DATA_DIR / "config.json"
+from database import get_db
 
-DEFAULT_CONFIG = {
-    "base_url": os.environ.get("ILINK_BASE_URL", "https://ilinkai.weixin.qq.com"),
-    "bot_token": None,
-    "account_id": None,
-    "sync_buf": None,
-    "known_users": [],
-    "user_context_tokens": {},
-}
-_config: Optional[Dict[str, Any]] = None
+DEFAULT_BASE_URL = os.environ.get("ILINK_BASE_URL", "https://ilinkai.weixin.qq.com")
 
 
-def load_config() -> Dict[str, Any]:
-    global _config
-    cfg = {**DEFAULT_CONFIG}
-    if CONFIG_FILE.exists():
+def get_system_config(key: str, default: str = "") -> str:
+    db = get_db()
+    row = db.execute("SELECT value FROM system_config WHERE key = ?", (key,)).fetchone()
+    return row["value"] if row else default
+
+
+def set_system_config(key: str, value: str):
+    db = get_db()
+    db.execute("INSERT OR REPLACE INTO system_config (key, value) VALUES (?, ?)", (key, value))
+    db.commit()
+
+
+def get_user_config(user_id: int) -> Dict[str, Any]:
+    db = get_db()
+    row = db.execute("SELECT * FROM user_configs WHERE user_id = ?", (user_id,)).fetchone()
+    if not row:
+        return {}
+    cfg = dict(row)
+    for field in ("known_users", "context_tokens"):
         try:
-            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-                saved = json.load(f)
-            cfg.update(saved)
+            cfg[field] = json.loads(cfg.get(field) or "[]")
         except Exception:
-            import logging
-            logging.getLogger("wxclawbotpush").warning("读取配置文件失败，使用默认配置")
-    _config = cfg
+            cfg[field] = [] if field == "known_users" else {}
     return cfg
 
 
-def save_config(updates: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    global _config
-    cfg = load_config()
-    if updates:
-        cfg.update(updates)
-    CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-        json.dump(cfg, f, ensure_ascii=False, indent=2)
-    _config = cfg
-    return cfg
+def save_user_config(user_id: int, updates: Dict[str, Any]):
+    db = get_db()
+    row = db.execute("SELECT user_id FROM user_configs WHERE user_id = ?", (user_id,)).fetchone()
+    json_fields = {"known_users", "context_tokens"}
+    set_parts = []
+    values = []
+    for k, v in updates.items():
+        if k in json_fields:
+            v = json.dumps(v, ensure_ascii=False) if v is not None else ("[]" if k == "known_users" else "{}")
+        set_parts.append(f"{k} = ?")
+        values.append(v)
+    values.append(user_id)
+    if not set_parts:
+        return
+    db.execute(f"UPDATE user_configs SET {', '.join(set_parts)} WHERE user_id = ?", values)
+    db.commit()
 
 
-def get_config() -> Dict[str, Any]:
-    global _config
-    if _config is None:
-        load_config()
-    return _config
+def init_user_config(user_id: int):
+    import secrets
+    token = secrets.token_hex(16)
+    db = get_db()
+    db.execute(
+        "INSERT OR IGNORE INTO user_configs (user_id, webhook_token) VALUES (?, ?)",
+        (user_id, token),
+    )
+    db.commit()
