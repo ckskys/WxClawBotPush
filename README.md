@@ -54,6 +54,31 @@ cd WxClawbotPush
 docker compose up -d --build
 ```
 
+### 本地部署
+
+```bash
+# 1. 克隆项目
+git clone https://github.com/ckskys/WxClawBotPush.git
+cd WxClawbotPush
+
+# 2. 配置环境变量
+cp .env.example .env
+# 编辑 .env 修改管理员密码
+
+# 3. 安装依赖
+pip install -r requirements.txt
+
+# 4. 启动
+source .env
+bash start.sh
+```
+
+或使用启动脚本一键启动：
+
+```bash
+ADMIN_USERNAME=admin ADMIN_PASSWORD=your_pass bash start.sh
+```
+
 ## 使用步骤
 
 ### 1. 访问管理页面
