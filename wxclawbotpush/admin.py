@@ -10,7 +10,7 @@ from fastapi.responses import HTMLResponse, PlainTextResponse, Response
 
 from config import get_config, save_config
 from client import get_client, close_client, _qr_code_data
-from wxclawbotpush.logging import log_buffer, log_buffer_lock
+from log_utils import log_buffer, log_buffer_lock
 from ilink.client import ILinkClient
 from polling import stop_polling, _poll_qr_code_status
 
