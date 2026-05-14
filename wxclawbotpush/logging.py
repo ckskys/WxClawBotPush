@@ -3,12 +3,12 @@ import threading
 from collections import deque
 from datetime import datetime
 
-log_buffer: deque = deque(maxlen=1000)
-log_buffer_lock = threading.Lock()
+log_buffer: "deque[dict]" = deque(maxlen=1000)
+log_buffer_lock: threading.Lock = threading.Lock()
 
 
 class LogBufferHandler(logging.Handler):
-    def emit(self, record):
+    def emit(self, record: logging.LogRecord):
         entry = {
             "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "level": record.levelname,
