@@ -155,15 +155,6 @@ async def webhook_get_handler(request: Request):
     if not message_text.strip():
         raise HTTPException(status_code=400, detail="缺少 msg 或 text 参数")
 
-    cfg = get_user_config(user_id)
-    template = cfg.get("message_template")
-    if template:
-        try:
-            data = {"msg": message_text, "title": message_text, "text": message_text}
-            message_text = render_template(template, data)
-        except Exception:
-            pass
-
     return _broadcast_to_users(user_id, message_text)
 
 
