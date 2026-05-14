@@ -34,16 +34,16 @@ def get_status():
 
 @router.get("/api/qrcode")
 def get_qr_code():
-    global _qr_code_data
     client = ILinkClient(base_url=get_config().get("base_url", "https://ilinkai.weixin.qq.com"))
     result = client.get_qrcode()
     if result.get("success"):
-        _qr_code_data = {
+        _qr_code_data.clear()
+        _qr_code_data.update({
             "qrcode": result.get("qrcode"),
             "qrcode_url": result.get("qrcode_url"),
             "status": "waiting",
             "updated_at": int(time.time()),
-        }
+        })
         threading.Thread(
             target=_poll_qr_code_status,
             args=(result.get("qrcode"),),
@@ -82,10 +82,9 @@ def get_qr_code_image():
 
 @router.post("/api/logout")
 def logout():
-    global _qr_code_data
     stop_polling()
     close_client()
-    _qr_code_data = {}
+    _qr_code_data.clear()
     save_config({"bot_token": None, "account_id": None, "sync_buf": None})
     logger.info("已退出登录")
     return {"success": True}
