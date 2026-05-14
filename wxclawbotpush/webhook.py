@@ -57,21 +57,9 @@ def parse_webhook_payload(data: Dict[str, Any]) -> str:
 
 
 def _broadcast_to_users(user_id: int, message_text: str) -> dict:
-    """向用户的所有已知联系人广播消息（自动去重）。"""
-    logger.info(f"[BROADCAST-IN] user_id={user_id} text_len={len(message_text)} text_preview={message_text[:80]}")
+    """向用户的所有已知联系人广播消息。"""
     cfg = get_user_config(user_id)
-    known_users_raw = list(cfg.get("known_users") or [])
-    # 去重，保持顺序
-    seen = set()
-    known_users = []
-    for u in known_users_raw:
-        if u not in seen:
-            seen.add(u)
-            known_users.append(u)
-    if len(known_users_raw) != len(known_users):
-        # 修复持久化中的重复数据
-        from config import save_user_config
-        save_user_config(user_id, {"known_users": known_users})
+    known_users = list(cfg.get("known_users") or [])
 
     if not known_users:
         raise HTTPException(status_code=503, detail="没有已知微信用户，请先向机器人发送一条消息")
@@ -138,7 +126,6 @@ def _build_message_text(request: Request, body: Any) -> str:
 @router.get("/webhook")
 async def webhook_get_handler(request: Request):
     """GET /webhook — 通过 query 参数 msg= 或 text= 推送消息（兼容群晖）。"""
-    logger.info(f"[WEBHOOK-IN] method={request.method} url={str(request.url)} client={request.client.host if request.client else '?'}")
     token = _get_token_from_request(request)
     if not token:
         raise HTTPException(status_code=401, detail="缺少 token 鉴权参数")
