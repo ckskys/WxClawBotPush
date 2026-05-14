@@ -1,0 +1,11 @@
+[project]
+name = "wxclawbotpush"
+version = "1.0.0"
+description = "Webhook to WeChat ClawBot message push service"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.100.0",
+    "uvicorn>=0.23.0",
+    "httpx>=0.24.0",
+    "pycryptodome>=3.19.0",
+]
