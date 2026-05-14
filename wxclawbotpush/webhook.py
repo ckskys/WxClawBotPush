@@ -1,3 +1,4 @@
+"""Webhook 路由模块：接收外部推送请求并转发到微信联系人。"""
 import json
 import logging
 from typing import Any, Dict, Optional
@@ -14,12 +15,14 @@ router = APIRouter()
 
 
 def _find_user_by_token(token: str) -> Optional[int]:
+    """根据 webhook_token 查找对应的用户 ID。"""
     db = get_db()
     row = db.execute("SELECT user_id FROM user_configs WHERE webhook_token = ?", (token,)).fetchone()
     return row["user_id"] if row else None
 
 
 def _get_token_from_request(request: Request) -> Optional[str]:
+    """从请求的 query string 或 X-Token 头部提取 token。"""
     token = request.query_params.get("token")
     if token:
         return token
@@ -27,6 +30,7 @@ def _get_token_from_request(request: Request) -> Optional[str]:
 
 
 def parse_webhook_payload(data: Dict[str, Any]) -> str:
+    """从 webhook 负载中提取标题、正文和链接，拼成消息文本。"""
     parts = []
     title = data.get("title") or data.get("subject") or data.get("summary")
     if title:
@@ -53,6 +57,7 @@ def parse_webhook_payload(data: Dict[str, Any]) -> str:
 
 
 def _broadcast_to_users(user_id: int, message_text: str) -> dict:
+    """向用户的所有已知联系人广播消息。"""
     cfg = get_user_config(user_id)
     known_users = list(cfg.get("known_users") or [])
     if not known_users:
@@ -79,6 +84,7 @@ def _broadcast_to_users(user_id: int, message_text: str) -> dict:
 
 
 def _log_push(user_id: int, target_user: str, status: str):
+    """记录推送日志到 push_logs 表。"""
     db = get_db()
     db.execute(
         "INSERT INTO push_logs (user_id, target_user, status) VALUES (?, ?, ?)",
@@ -88,6 +94,7 @@ def _log_push(user_id: int, target_user: str, status: str):
 
 
 def _build_message_text(request: Request, body: Any) -> str:
+    """从 POST 请求体和 query 参数构建消息文本。"""
     message_text = ""
     query_params = dict(request.query_params)
 
@@ -116,6 +123,7 @@ def _build_message_text(request: Request, body: Any) -> str:
 
 @router.get("/webhook")
 async def webhook_get_handler(request: Request):
+    """GET /webhook — 通过 query 参数 msg= 直接推送消息。"""
     token = _get_token_from_request(request)
     if not token:
         raise HTTPException(status_code=401, detail="缺少 token 鉴权参数")
@@ -145,6 +153,7 @@ async def webhook_get_handler(request: Request):
 
 @router.post("/webhook")
 async def webhook_post_handler(request: Request):
+    """POST /webhook — 通过请求体 JSON 推送消息，支持模板渲染。"""
     token = _get_token_from_request(request)
     if not token:
         raise HTTPException(status_code=401, detail="缺少 token 鉴权参数")

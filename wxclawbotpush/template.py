@@ -1,3 +1,4 @@
+"""模板渲染引擎：支持 {{ field }} 和 {{ nested.path }} 占位符替换。"""
 import re
 from typing import Any, Dict
 
@@ -5,7 +6,7 @@ _TOKEN_RE = re.compile(r"\{\{\s*(\w+(?:\.\w+)*)\s*\}\}")
 
 
 def render_template(template_str: str, data: Dict[str, Any]) -> str:
-    """将 {{ field.sub }} 占位符替换为 data 中对应的值。缺失字段替换为空字符串。"""
+    """将 {{ field }} 占位符替换为 data 中对应的值。缺失字段替换为空字符串。"""
     if not template_str:
         return ""
 
@@ -23,6 +24,7 @@ def render_template(template_str: str, data: Dict[str, Any]) -> str:
 
 
 def _resolve_path(obj: Any, keys: list) -> Any:
+    """沿点分隔路径逐级解析 data 字典/列表中的值。"""
     for key in keys:
         if isinstance(obj, dict):
             obj = obj.get(key)

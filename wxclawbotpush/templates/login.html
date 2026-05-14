@@ -25,11 +25,13 @@ input:focus { outline: none; border-color: #07c160; box-shadow: 0 0 0 2px rgba(7
 <body>
 <div class="card">
   <h1>WxClawBotPush</h1>
+  <!-- 登录/注册 Tab 切换 -->
   <div class="tabs">
     <div class="tab active" data-tab="login">登录</div>
     <div class="tab" data-tab="register">注册</div>
   </div>
   <div id="error" class="error hidden"></div>
+  <!-- 登录表单 -->
   <form id="loginForm">
     <label>用户名</label>
     <input type="text" id="username" autocomplete="username" required minlength="3">
@@ -37,6 +39,7 @@ input:focus { outline: none; border-color: #07c160; box-shadow: 0 0 0 2px rgba(7
     <input type="password" id="password" autocomplete="current-password" required minlength="6">
     <button type="submit" class="btn btn-primary">登录</button>
   </form>
+  <!-- 注册表单（默认隐藏） -->
   <form id="registerForm" class="hidden">
     <label>用户名</label>
     <input type="text" id="regUsername" required minlength="3">
@@ -46,6 +49,7 @@ input:focus { outline: none; border-color: #07c160; box-shadow: 0 0 0 2px rgba(7
   </form>
 </div>
 <script>
+// Tab 切换逻辑
 var tabs = document.querySelectorAll('.tab');
 tabs.forEach(function(t) { t.addEventListener('click', function() {
   tabs.forEach(function(x) { x.classList.remove('active'); });
@@ -56,6 +60,7 @@ tabs.forEach(function(t) { t.addEventListener('click', function() {
   document.getElementById('error').classList.add('hidden');
 });});
 
+// 登录表单提交
 document.getElementById('loginForm').addEventListener('submit', async function(e) {
   e.preventDefault();
   var username = document.getElementById('username').value;
@@ -72,6 +77,7 @@ document.getElementById('loginForm').addEventListener('submit', async function(e
   }
 });
 
+// 注册表单提交
 document.getElementById('registerForm').addEventListener('submit', async function(e) {
   e.preventDefault();
   var username = document.getElementById('regUsername').value;

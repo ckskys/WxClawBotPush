@@ -1,9 +1,11 @@
+"""命令行工具：创建管理员账号。"""
 import sys
 from database import init_db
 from auth import create_admin
 
 
 def main():
+    """CLI 入口：<用户名> <密码> 创建或获取管理员账号。"""
     init_db()
     if len(sys.argv) != 3:
         print("用法: python -m wxclawbotpush.create_admin <用户名> <密码>")

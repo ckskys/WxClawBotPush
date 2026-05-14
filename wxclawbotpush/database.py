@@ -1,3 +1,4 @@
+"""数据库模块：SQLite 连接管理与 DDL 初始化。"""
 import sqlite3
 import os
 import threading
@@ -12,6 +13,7 @@ _lock = threading.Lock()
 
 
 def get_db() -> sqlite3.Connection:
+    """获取全局 SQLite 连接（延迟创建），启用 WAL 模式和外键约束。"""
     global _connection
     if _connection is None:
         DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -23,6 +25,7 @@ def get_db() -> sqlite3.Connection:
 
 
 def init_db():
+    """初始化数据库表结构（幂等：仅当表不存在时创建）。"""
     db = get_db()
     db.executescript("""
         CREATE TABLE IF NOT EXISTS users (
@@ -66,6 +69,7 @@ def init_db():
 
 
 def close_db():
+    """关闭数据库连接。"""
     global _connection
     if _connection:
         try:

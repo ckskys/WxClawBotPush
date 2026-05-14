@@ -1,3 +1,4 @@
+"""后台轮询模块：微信消息同步和二维码扫码状态检测。"""
 import logging
 import threading
 import time
@@ -9,11 +10,12 @@ from ilink.client import ILinkClient
 
 logger = logging.getLogger("wxclawbotpush")
 
-_polling_threads: Dict[int, threading.Thread] = {}
-_polling_flags: Dict[int, bool] = {}
+_polling_threads: Dict[int, threading.Thread] = {}  # 用户 ID → 轮询线程
+_polling_flags: Dict[int, bool] = {}  # 用户 ID → 是否继续轮询
 
 
 def start_polling(user_id: int):
+    """启动用户的消息轮询守护线程。"""
     if user_id in _polling_threads and _polling_threads[user_id].is_alive():
         return
     _polling_flags[user_id] = True
@@ -24,21 +26,25 @@ def start_polling(user_id: int):
 
 
 def stop_polling(user_id: int):
+    """停止用户的消息轮询（通过标志位通知线程退出）。"""
     _polling_flags[user_id] = False
     logger.info(f"后台消息轮询已停止: user_id={user_id}")
 
 
 def stop_all_polling():
+    """停止所有用户的消息轮询。"""
     for uid in list(_polling_flags.keys()):
         _polling_flags[uid] = False
     logger.info("所有轮询已停止")
 
 
 def is_polling(user_id: int) -> bool:
+    """检查用户的消息轮询是否正在运行。"""
     return _polling_flags.get(user_id, False)
 
 
 def _poll_incoming_messages(user_id: int):
+    """消息轮询循环：长轮询 /ilink/bot/getupdates，发现新联系人和上下文 token 后自动保存。"""
     while _polling_flags.get(user_id, False):
         try:
             client = get_client(user_id)
@@ -78,6 +84,7 @@ def _poll_incoming_messages(user_id: int):
 
 
 def _poll_qr_code_status(user_id: int, qrcode_id: str):
+    """轮询二维码扫码状态（最长 240 秒）；扫码成功后自动保存 token 并启动消息轮询。"""
     cfg = get_user_config(user_id)
     base_url = cfg.get("base_url", "https://ilinkai.weixin.qq.com")
     client = ILinkClient(base_url=base_url)

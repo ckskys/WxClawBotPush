@@ -1,3 +1,4 @@
+"""iLink 协议客户端：二维码登录、消息发送、消息轮询。"""
 import base64
 import hashlib
 import json
@@ -19,6 +20,8 @@ logger = logging.getLogger("wxclawbotpush.ilink")
 
 
 class ILinkClient:
+    """iLink 协议客户端，封装与微信开放平台 Bot API 的交互。"""
+
     def __init__(
         self,
         base_url: str,
@@ -39,6 +42,7 @@ class ILinkClient:
         self._client = httpx.Client(timeout=httpx.Timeout(timeout))
 
     def _log(self, level: str, message: str):
+        """内部日志输出：优先使用外部注入的 log_func，否则使用标准 logger。"""
         if self._log_func:
             try:
                 self._log_func(level, f"[ILinkClient] {message}")
@@ -56,12 +60,14 @@ class ILinkClient:
             logger.info(f"[ILinkClient] {message}")
 
     def close(self):
+        """关闭 HTTP 客户端连接。"""
         try:
             self._client.close()
         except Exception:
             pass
 
     def _headers(self, auth_required: bool = True) -> Dict[str, str]:
+        """构建请求头，包含 Authorization token 和 WeChat UIN。"""
         headers = {
             "Content-Type": "application/json",
             "Accept": "application/json, text/plain, */*",
@@ -75,10 +81,12 @@ class ILinkClient:
 
     @staticmethod
     def _build_wechat_uin() -> str:
+        """生成随机 X-WECHAT-UIN 用于请求头。"""
         random_u32 = random.getrandbits(32)
         return base64.b64encode(str(random_u32).encode("utf-8")).decode("ascii")
 
     def _with_base_info(self, body: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        """为请求体添加 channel_version 基信息。"""
         payload = dict(body or {})
         base_info = payload.get("base_info")
         if not isinstance(base_info, dict):
@@ -97,6 +105,7 @@ class ILinkClient:
 
     @staticmethod
     def _json(resp) -> Dict[str, Any]:
+        """安全地将 HTTP 响应解析为 JSON 字典。"""
         if not resp:
             return {}
         try:
@@ -112,6 +121,7 @@ class ILinkClient:
 
     @staticmethod
     def _ok(payload: Dict[str, Any]) -> bool:
+        """判断 API 响应是否成功（检查 errcode/code/ret 等字段）。"""
         if not payload:
             return False
         code = payload.get("errcode")
@@ -134,6 +144,7 @@ class ILinkClient:
 
     @staticmethod
     def _short_text(value: Any, max_len: int = 240) -> str:
+        """将值截断为指定长度的文本（用于日志）。"""
         if value is None:
             return ""
         if isinstance(value, (dict, list)):
@@ -151,6 +162,7 @@ class ILinkClient:
     # ── QR Code ──────────────────────────────────────────────────────
 
     def get_qrcode(self) -> Dict[str, Any]:
+        """获取 Bot 登录二维码。"""
         url = f"{self.base_url}/ilink/bot/get_bot_qrcode?bot_type=3"
         self._log("debug", f"请求二维码: {url}")
         resp = self._get(url, auth=False)
@@ -188,6 +200,7 @@ class ILinkClient:
         return result
 
     def get_qrcode_status(self, qrcode: str) -> Dict[str, Any]:
+        """查询二维码扫码状态，扫码成功后自动填充 bot_token 和 account_id。"""
         url = f"{self.base_url}/ilink/bot/get_qrcode_status"
         self._log("debug", f"查询二维码状态: qrcode={qrcode}")
         resp = self._get(url, params={"qrcode": qrcode}, auth=False)
@@ -239,6 +252,7 @@ class ILinkClient:
 
     @staticmethod
     def _build_user_candidates(to_user: str) -> List[str]:
+        """生成目标用户 ID 的候选列表（原始值、不含域名、含域名后缀）。"""
         raw = str(to_user or "").strip()
         if not raw:
             return []
@@ -258,6 +272,7 @@ class ILinkClient:
     def _build_protocol_msg_payload(
         self, user_id: str, text: str, context_token: Optional[str]
     ) -> Dict[str, Any]:
+        """构建 iLink 协议消息体。"""
         msg = {
             "from_user_id": str(self.account_id or ""),
             "to_user_id": user_id,
@@ -271,6 +286,7 @@ class ILinkClient:
         return {"msg": msg}
 
     def _is_send_success(self, payload: Dict[str, Any]) -> bool:
+        """判断发送是否成功（检查 errcode 和 success 字段）。"""
         if not payload:
             return False
         code = self._find_first_value(
@@ -291,6 +307,7 @@ class ILinkClient:
         return False
 
     def _is_send_explicit_failure(self, payload: Dict[str, Any]) -> bool:
+        """判断发送是否明确失败（errCode 非 0）。"""
         if not payload:
             return False
         code = self._find_first_value(
@@ -307,6 +324,7 @@ class ILinkClient:
         return False
 
     def _is_send_http_success(self, resp, payload: Dict[str, Any]) -> bool:
+        """判断 HTTP 层面发送是否成功（2xx 且非明确失败）。"""
         if resp is None:
             return False
         status_code = getattr(resp, "status_code", None)
@@ -325,6 +343,7 @@ class ILinkClient:
     def send_text(
         self, to_user: str, text: str, context_token: Optional[str] = None
     ) -> bool:
+        """发送文本消息到指定用户，自动尝试多种 user_id 格式。"""
         if not self.bot_token:
             self._log("warning", "发送消息失败：bot token 未配置")
             return False
@@ -361,6 +380,7 @@ class ILinkClient:
     def poll_updates(
         self, timeout_seconds: int = 25
     ) -> Tuple[List[IncomingMessage], Optional[str], Dict[str, Any]]:
+        """长轮询获取新消息，返回解析后的消息列表和同步缓冲区。"""
         if not self.bot_token:
             return [], self.sync_buf, {"success": False, "message": "bot token 未配置"}
 
@@ -394,6 +414,7 @@ class ILinkClient:
         return parsed, self.sync_buf, result
 
     def _extract_updates(self, payload: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], Optional[str]]:
+        """从轮询响应中提取消息列表和 sync_buf。"""
         data = payload.get("data") or payload.get("result") or payload
         sync_buf = (
             data.get("get_updates_buf") or payload.get("get_updates_buf")
@@ -410,6 +431,7 @@ class ILinkClient:
         return [], sync_buf
 
     def _parse_incoming(self, item: Dict[str, Any]) -> Optional[IncomingMessage]:
+        """将轮询响应中的单条消息解析为 IncomingMessage。"""
         if not isinstance(item, dict):
             return None
         message = item
@@ -476,6 +498,7 @@ class ILinkClient:
     # ── Connection Test ───────────────────────────────────────────────
 
     def test_connection(self) -> Tuple[bool, str]:
+        """测试连接是否正常。"""
         if not self.bot_token:
             return False, "未登录，缺少 bot token"
         url = f"{self.base_url}/ilink/bot/getconfig"
@@ -489,6 +512,7 @@ class ILinkClient:
 
     @staticmethod
     def _pick_value(obj: Dict[str, Any], keys: List[str]) -> Optional[Any]:
+        """从字典中按顺序匹配键名，返回第一个非空值。"""
         for key in keys:
             if key in obj and obj.get(key) not in (None, ""):
                 return obj.get(key)
@@ -496,6 +520,7 @@ class ILinkClient:
 
     @classmethod
     def _find_first_value(cls, data: Any, keys: List[str], max_depth: int = 5) -> Optional[Any]:
+        """递归搜索数据结构中第一个匹配键的非空值。"""
         if max_depth < 0 or data is None:
             return None
         if isinstance(data, dict):
@@ -515,6 +540,7 @@ class ILinkClient:
 
     @classmethod
     def _find_first_list(cls, data: Any, prefer_keys: List[str], max_depth: int = 5) -> Optional[List[Any]]:
+        """递归搜索数据结构中第一个列表值（优先匹配指定键名）。"""
         if max_depth < 0 or data is None:
             return None
         if isinstance(data, dict):
@@ -533,6 +559,7 @@ class ILinkClient:
 
     @staticmethod
     def _as_scalar(value: Any) -> Optional[Any]:
+        """判断值是否为标量（非空、非容器），是则返回该值，否则返回 None。"""
         if value in (None, ""):
             return None
         if isinstance(value, (dict, list, tuple, set)):

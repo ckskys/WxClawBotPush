@@ -46,14 +46,18 @@ textarea:focus { outline: none; border-color: #07c160; }
 </div>
 <div class="container" id="app"></div>
 <script>
+// 登录检查
 var token = localStorage.getItem('token');
 if (!token) window.location.href = '/login.html';
+
+// API 请求封装（自动携带 Authorization header）
 var api = function(url, opts) {
   opts = opts || {};
   opts.headers = Object.assign({}, opts.headers || {}, {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token});
   return fetch(url, opts).then(function(r) { return r.json(); });
 };
 
+// 页面加载：根据角色渲染对应面板
 async function load() {
   var resp = await api('/api/user/config');
   if (resp.detail && resp.detail.indexOf('登录') >= 0) { window.location.href = '/login.html'; return; }
@@ -74,6 +78,7 @@ async function load() {
   if (isAdmin) loadUsers();
 }
 
+// 管理员面板：系统看板、注册开关、用户列表、创建用户
 function renderAdminPanel(cfg, status, stats) {
   return '<div class="card">' +
     '<h2>系统看板</h2>' +
@@ -92,8 +97,11 @@ function renderAdminPanel(cfg, status, stats) {
   '</div>';
 }
 
+// 用户面板：微信连接、Webhook、模板、修改密码、注销、推送日志
 function renderUserPanel(cfg, status) {
   var html = '<div class="card"><h2>个人设置</h2>';
+
+  // 微信连接状态
   if (status.connected) {
     html += '<p style="color:#07c160;font-size:14px">微信已连接 (' + (status.account_id || '未知账号') + ')</p>';
     html += '<p style="font-size:13px;color:#666;margin-top:4px">已知联系人: ' + status.known_users + ' 个</p>';
@@ -104,20 +112,36 @@ function renderUserPanel(cfg, status) {
   }
   html += '<div id="qrcodeArea" style="margin-top:12px"></div>';
 
+  // Webhook Token
   html += '<h2 style="margin-top:24px">Webhook Token</h2>';
   html += '<div class="tokencopy">' + cfg.webhook_token + '</div>';
   html += '<button class="btn btn-green" onclick="resetToken()">重置 Token</button>';
   html += '<p style="font-size:12px;color:#999;margin-top:4px">推送地址: <span class="code">GET/POST /webhook?token=' + cfg.webhook_token + '</span></p>';
 
+  // 消息模板
   html += '<h2 style="margin-top:24px">消息模板</h2>';
   html += '<textarea id="templateInput">' + (cfg.message_template || '') + '</textarea>';
   html += '<button class="btn btn-green" style="margin-top:8px" onclick="saveTemplate()">保存模板</button>';
   html += '<p style="font-size:12px;color:#999;margin-top:4px">占位符: <span class="code">{{ field }}</span> 支持嵌套如 <span class="code">{{ alert.name }}</span></p>';
 
+  // 修改密码
+  html += '<h2 style="margin-top:24px">修改密码</h2>';
+  html += '<input type="password" id="currentPassword" placeholder="当前密码" style="width:100%;padding:8px 12px;border:1px solid #d9d9d9;border-radius:6px;font-size:14px;margin-bottom:8px">';
+  html += '<input type="password" id="newPassword" placeholder="新密码（至少6位）" style="width:100%;padding:8px 12px;border:1px solid #d9d9d9;border-radius:6px;font-size:14px;margin-bottom:8px">';
+  html += '<input type="password" id="confirmPassword" placeholder="确认新密码" style="width:100%;padding:8px 12px;border:1px solid #d9d9d9;border-radius:6px;font-size:14px;margin-bottom:8px">';
+  html += '<button class="btn btn-green" onclick="changePassword()">修改密码</button>';
+
+  // 注销账号
+  html += '<h2 style="margin-top:24px;color:#e74c3c">注销账号</h2>';
+  html += '<p style="font-size:13px;color:#999;margin-bottom:8px">注销后所有数据将被永久删除，无法恢复。</p>';
+  html += '<button class="btn btn-red" onclick="deactivateAccount()">注销我的账号</button>';
+
+  // 推送日志
   html += '<h2 style="margin-top:24px">推送日志</h2><div id="logArea"></div></div>';
   return html;
 }
 
+// 加载用户列表（管理员）
 async function loadUsers() {
   var resp = await api('/api/admin/users');
   var users = resp.users || [];
@@ -136,6 +160,7 @@ async function loadUsers() {
   '</table>';
 }
 
+// 获取扫码登录二维码
 async function getQrCode() {
   try {
     var resp = await api('/api/user/qrcode');
@@ -145,26 +170,31 @@ async function getQrCode() {
   } catch(e) {}
 }
 
+// 断开微信连接
 async function logoutBot() {
   await api('/api/user/logout', { method: 'POST' });
   location.reload();
 }
 
+// 重置 Webhook Token
 async function resetToken() {
   var resp = await api('/api/user/token', { method: 'POST' });
   location.reload();
 }
 
+// 保存消息模板
 async function saveTemplate() {
   var tpl = document.getElementById('templateInput').value;
   await api('/api/user/config', { method: 'PUT', body: JSON.stringify({ message_template: tpl }) });
   alert('模板已保存');
 }
 
+// 切换注册开关（管理员）
 async function toggleReg(v) {
   await api('/api/admin/config', { method: 'PUT', body: JSON.stringify({ registration_open: v ? '1' : '0' }) });
 }
 
+// 创建用户（管理员）
 async function createUser() {
   var username = document.getElementById('newUsername').value;
   var password = document.getElementById('newPassword').value;
@@ -173,17 +203,20 @@ async function createUser() {
   loadUsers();
 }
 
+// 禁用/启用用户（管理员）
 async function toggleUser(id, disabled) {
   await api('/api/admin/users/' + id, { method: 'PUT', body: JSON.stringify({ is_disabled: disabled ? 1 : 0 }) });
   loadUsers();
 }
 
+// 删除用户（管理员）
 async function deleteUser(id) {
   if (!confirm('确定删除该用户？')) return;
   await api('/api/admin/users/' + id, { method: 'DELETE' });
   loadUsers();
 }
 
+// 加载推送日志
 async function loadLogs() {
   var resp = await api('/api/user/logs');
   var logs = resp.logs || [];
@@ -192,6 +225,38 @@ async function loadLogs() {
   }).join('') || '<p style="font-size:13px;color:#999">暂无推送记录</p>';
 }
 
+// 修改密码
+async function changePassword() {
+  var currentPassword = document.getElementById('currentPassword').value;
+  var newPassword = document.getElementById('newPassword').value;
+  var confirmPassword = document.getElementById('confirmPassword').value;
+  if (!currentPassword || !newPassword || !confirmPassword) { alert('请填写所有密码字段'); return; }
+  if (newPassword.length < 6) { alert('新密码至少6位'); return; }
+  if (newPassword !== confirmPassword) { alert('两次输入的新密码不一致'); return; }
+  var resp = await api('/api/user/change-password', { method: 'POST', body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }) });
+  if (resp.success) {
+    alert('密码修改成功，请重新登录');
+    localStorage.removeItem('token');
+    window.location.href = '/login.html';
+  } else {
+    alert(resp.detail || '修改失败');
+  }
+}
+
+// 注销账号
+async function deactivateAccount() {
+  if (!confirm('确定要注销账号吗？所有数据将被永久删除，此操作不可撤销！')) return;
+  if (!confirm('再次确认：注销后数据将无法恢复，确定继续？')) return;
+  var resp = await api('/api/user/deactivate', { method: 'POST' });
+  if (resp.success) {
+    localStorage.removeItem('token');
+    window.location.href = '/login.html';
+  } else {
+    alert(resp.detail || '注销失败');
+  }
+}
+
+// 退出登录
 function logout() {
   api('/api/logout', { method: 'POST' });
   localStorage.removeItem('token');

@@ -1,3 +1,4 @@
+"""FastAPI 应用工厂，负责组装路由、生命周期管理和初始化。"""
 import os
 from fastapi import FastAPI
 
@@ -16,6 +17,7 @@ app.include_router(admin_router)
 
 @app.on_event("startup")
 def startup():
+    """应用启动时执行：初始化数据库、创建管理员账号。"""
     init_db()
 
     admin_user = os.environ.get("ADMIN_USERNAME")
@@ -30,6 +32,7 @@ def startup():
 
 @app.on_event("shutdown")
 def shutdown():
+    """应用关闭时执行：停止所有轮询、关闭客户端连接和数据库。"""
     from polling import stop_all_polling
     from client import close_all
     stop_all_polling()
