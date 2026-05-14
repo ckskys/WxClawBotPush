@@ -116,7 +116,7 @@ function renderUserPanel(cfg, status) {
   html += '<h2 style="margin-top:24px">Webhook Token</h2>';
   html += '<div class="tokencopy">' + cfg.webhook_token + '</div>';
   html += '<button class="btn btn-green" onclick="resetToken()">重置 Token</button>';
-  html += '<p style="font-size:12px;color:#999;margin-top:4px">推送地址: <span class="code">GET/POST /webhook?token=' + cfg.webhook_token + '</span></p>';
+  html += '<p style="font-size:12px;color:#999;margin-top:4px">推送地址: <span class="code">GET/POST ' + window.location.origin + '/webhook?token=' + cfg.webhook_token + '</span></p>';
 
   // 消息模板
   html += '<h2 style="margin-top:24px">消息模板</h2>';
