@@ -4,36 +4,226 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>WxClawBotPush - 管理面板</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Fira+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; }
-.header { background: #fff; border-bottom: 1px solid #e8e8e8; padding: 0 24px; height: 56px; display: flex; align-items: center; justify-content: space-between; }
-.header h1 { font-size: 18px; color: #1a1a1a; }
-.header .right { display: flex; align-items: center; gap: 12px; }
-.header .right span { font-size: 14px; color: #666; }
-.header button { background: none; border: 1px solid #d9d9d9; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; }
-.container { max-width: 900px; margin: 24px auto; padding: 0 16px; }
-.card { background: #fff; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); padding: 24px; margin-bottom: 16px; }
-.card h2 { font-size: 16px; margin-bottom: 16px; color: #333; }
-.form-row { display: flex; gap: 12px; margin-bottom: 12px; }
-.form-row input { flex: 1; padding: 8px 12px; border: 1px solid #d9d9d9; border-radius: 6px; font-size: 14px; }
-.form-row input:focus { outline: none; border-color: #07c160; }
-.btn { padding: 8px 20px; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; }
-.btn-green { background: #07c160; color: #fff; }
-.btn-green:hover { background: #06ad56; }
-.btn-red { background: #e74c3c; color: #fff; }
-.btn-red:hover { background: #c0392b; }
+/* ── 设计令牌 ─────────────────────────────────────────────── */
+:root {
+  --color-primary: #1E3A5F;
+  --color-on-primary: #FFFFFF;
+  --color-secondary: #2563EB;
+  --color-accent: #059669;
+  --color-background: #F8FAFC;
+  --color-surface: #FFFFFF;
+  --color-foreground: #0F172A;
+  --color-muted: #F1F3F5;
+  --color-muted-2: #E4E7EB;
+  --color-border: #E4E7EB;
+  --color-destructive: #DC2626;
+  --color-destructive-hover: #B91C1C;
+  --color-text: #1E293B;
+  --color-text-secondary: #64748B;
+  --color-text-muted: #94A3B8;
+  --color-success: #059669;
+  --color-success-bg: #ECFDF5;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --shadow-sm: 0 1px 2px 0 rgba(0,0,0,0.05);
+  --shadow-md: 0 1px 3px 0 rgba(0,0,0,0.08), 0 1px 2px -1px rgba(0,0,0,0.06);
+  --shadow-lg: 0 4px 6px -1px rgba(0,0,0,0.07), 0 2px 4px -2px rgba(0,0,0,0.05);
+  --transition: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --font-sans: 'Fira Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'Fira Code', 'SF Mono', 'Cascadia Code', monospace;
+}
+
+/* ── 基础重置 ─────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: var(--font-sans);
+  font-size: 14px; line-height: 1.6;
+  color: var(--color-text);
+  background: var(--color-background);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── 顶部导航 ─────────────────────────────────────────────── */
+.header {
+  background: var(--color-primary); color: var(--color-on-primary);
+  padding: 0 24px; height: 56px; display: flex; align-items: center;
+  justify-content: space-between; position: sticky; top: 0; z-index: 100;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+}
+.header h1 { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
+.header .right { display: flex; align-items: center; gap: 16px; }
+.header .right span { font-size: 13px; opacity: 0.85; }
+.btn-logout {
+  background: rgba(255,255,255,0.12); color: #fff;
+  border: 1px solid rgba(255,255,255,0.2); padding: 5px 14px;
+  border-radius: var(--radius-sm); cursor: pointer; font-size: 13px;
+  font-family: var(--font-sans); font-weight: 500;
+  transition: background var(--transition);
+}
+.btn-logout:hover { background: rgba(255,255,255,0.2); }
+.btn-logout:focus-visible { outline: 2px solid #93C5FD; outline-offset: 2px; }
+
+/* ── 主容器 ───────────────────────────────────────────────── */
+.container { max-width: 1040px; margin: 0 auto; padding: 24px 20px 48px; }
+
+/* ── KPI 统计卡片行 ───────────────────────────────────────── */
+.kpi-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px; }
+.kpi-card {
+  background: var(--color-surface); border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border); padding: 18px 20px;
+  box-shadow: var(--shadow-sm); transition: box-shadow var(--transition);
+}
+.kpi-card:hover { box-shadow: var(--shadow-md); }
+.kpi-card .kpi-label { font-size: 12px; color: var(--color-text-muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+.kpi-card .kpi-value { font-size: 28px; font-weight: 700; color: var(--color-foreground); font-family: var(--font-mono); }
+.kpi-card .kpi-sub { font-size: 12px; color: var(--color-text-secondary); margin-top: 2px; }
+
+/* ── 双列网格 ─────────────────────────────────────────────── */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+
+/* ── 卡片 ─────────────────────────────────────────────────── */
+.card {
+  background: var(--color-surface); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm); border: 1px solid var(--color-border);
+  padding: 24px; margin-bottom: 20px;
+}
+.card h2 { font-size: 15px; font-weight: 600; color: var(--color-foreground); margin-bottom: 16px; letter-spacing: -0.01em; }
+.card h2:not(:first-child) { margin-top: 28px; }
+.card.full-width { margin-bottom: 20px; }
+
+/* ── 按钮 ─────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 8px 18px; border: 1px solid transparent;
+  border-radius: var(--radius-sm); font-size: 13px; font-weight: 500;
+  font-family: var(--font-sans); cursor: pointer;
+  transition: all var(--transition); white-space: nowrap; user-select: none;
+}
+.btn:focus-visible { outline: 2px solid var(--color-secondary); outline-offset: 2px; }
+.btn-primary { background: var(--color-primary); color: var(--color-on-primary); }
+.btn-primary:hover { background: #162D4A; }
+.btn-primary:active { background: #0F2036; }
+.btn-accent { background: var(--color-accent); color: #fff; }
+.btn-accent:hover { background: #047A57; }
+.btn-accent:active { background: #036645; }
+.btn-danger { background: var(--color-destructive); color: #fff; }
+.btn-danger:hover { background: var(--color-destructive-hover); }
+.btn-danger:active { background: #991B1B; }
+.btn-outline { background: transparent; border-color: var(--color-border); color: var(--color-text); }
+.btn-outline:hover { background: var(--color-muted); border-color: #CBD5E1; }
+.btn-outline:active { background: var(--color-muted-2); }
+.btn-sm { padding: 5px 12px; font-size: 12px; }
+
+/* ── 表单控件 ─────────────────────────────────────────────── */
+input[type="text"], input[type="password"], textarea {
+  width: 100%; padding: 8px 12px; border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm); font-size: 14px; font-family: var(--font-sans);
+  color: var(--color-text); background: var(--color-surface);
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+input[type="text"]:focus, input[type="password"]:focus, textarea:focus {
+  outline: none; border-color: var(--color-secondary);
+  box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
+}
+input::placeholder { color: var(--color-text-muted); }
+textarea { resize: vertical; min-height: 80px; font-family: var(--font-mono); font-size: 13px; }
+.form-row { display: flex; gap: 10px; margin-bottom: 10px; }
+.form-row input { flex: 1; }
+.form-group { margin-bottom: 10px; }
+input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--color-accent); cursor: pointer; }
+
+/* ── 表格 ─────────────────────────────────────────────────── */
 table { width: 100%; border-collapse: collapse; }
-th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
-th { color: #999; font-weight: 500; }
-.badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; }
-.badge-on { background: #e6f9f0; color: #07c160; }
-.badge-off { background: #f5f5f5; color: #999; }
-.hidden { display: none; }
-textarea { width: 100%; padding: 8px 12px; border: 1px solid #d9d9d9; border-radius: 6px; font-size: 14px; font-family: monospace; resize: vertical; min-height: 80px; }
-textarea:focus { outline: none; border-color: #07c160; }
-.tokencopy { font-family: monospace; font-size: 13px; word-break: break-all; background: #f5f5f5; padding: 8px 12px; border-radius: 4px; margin: 8px 0; }
-.code { background: #f5f5f5; padding: 2px 6px; border-radius: 3px; font-family: monospace; font-size: 13px; }
+th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--color-muted-2); font-size: 13px; }
+th {
+  color: var(--color-text-muted); font-weight: 500; font-size: 12px;
+  text-transform: uppercase; letter-spacing: 0.05em;
+  background: var(--color-muted); border-bottom: 2px solid var(--color-border);
+}
+tbody tr:hover { background: #F1F5F9; }
+tbody tr:last-child td { border-bottom: none; }
+
+/* ── 徽章 ─────────────────────────────────────────────────── */
+.badge {
+  display: inline-flex; align-items: center; padding: 3px 10px;
+  border-radius: 100px; font-size: 11px; font-weight: 500; letter-spacing: 0.02em;
+}
+.badge-success { background: var(--color-success-bg); color: var(--color-success); }
+.badge-neutral { background: var(--color-muted); color: var(--color-text-muted); }
+
+/* ── 连接状态 ─────────────────────────────────────────────── */
+.status-on {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 14px; font-weight: 500; color: var(--color-success);
+}
+.status-on::before {
+  content: ''; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--color-success); animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+.status-off { font-size: 14px; color: var(--color-text-muted); }
+.status-meta { font-size: 13px; color: var(--color-text-secondary); margin-top: 4px; }
+
+/* ── Token 展示 ───────────────────────────────────────────── */
+.token-display {
+  font-family: var(--font-mono); font-size: 13px; word-break: break-all;
+  background: var(--color-muted); padding: 10px 14px;
+  border-radius: var(--radius-sm); margin: 10px 0;
+  border: 1px solid var(--color-border); color: var(--color-text);
+}
+
+/* ── 二维码区域 ───────────────────────────────────────────── */
+.qr-box {
+  margin-top: 14px; padding: 20px; text-align: center;
+  background: var(--color-muted); border-radius: var(--radius-md);
+  border: 1px dashed var(--color-border);
+}
+.qr-box img { border-radius: var(--radius-sm); box-shadow: var(--shadow-sm); }
+.qr-box .qr-hint { font-size: 13px; color: var(--color-text-secondary); margin-bottom: 10px; }
+.qr-box .qr-expired { font-size: 13px; color: var(--color-destructive); }
+
+/* ── 危险区域 ─────────────────────────────────────────────── */
+.danger-zone { border: 1px solid #FECACA; }
+.danger-zone h2 { color: var(--color-destructive); }
+.danger-zone p { font-size: 13px; color: var(--color-text-secondary); margin-bottom: 10px; }
+
+/* ── 行内操作（表格内按钮）───────────────────────────────── */
+.action-btn {
+  background: none; border: none; color: var(--color-secondary);
+  cursor: pointer; font-size: 12px; font-weight: 500;
+  font-family: var(--font-sans); padding: 2px 8px; border-radius: 4px;
+  transition: all var(--transition);
+}
+.action-btn:hover { background: #EFF6FF; }
+.action-btn.danger { color: var(--color-destructive); }
+.action-btn.danger:hover { background: #FEF2F2; }
+
+/* ── 辅助文本 ─────────────────────────────────────────────── */
+.help-text { font-size: 12px; color: var(--color-text-muted); margin-top: 6px; }
+.help-text code { background: var(--color-muted); padding: 2px 5px; border-radius: 3px; font-family: var(--font-mono); font-size: 11px; }
+code.inline { background: var(--color-muted); padding: 2px 6px; border-radius: 3px; font-family: var(--font-mono); font-size: 12px; color: var(--color-secondary); }
+hr.divider { border: none; border-top: 1px solid var(--color-border); margin: 20px 0; }
+
+/* ── 响应式 ───────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .kpi-row { grid-template-columns: repeat(2, 1fr); }
+  .grid-2 { grid-template-columns: 1fr; }
+  .container { padding: 16px 12px 32px; }
+  .card { padding: 16px; }
+  .form-row { flex-direction: column; gap: 8px; }
+}
+@media (max-width: 480px) {
+  .kpi-row { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .kpi-card { padding: 14px; }
+  .kpi-card .kpi-value { font-size: 22px; }
+  .header { padding: 0 12px; }
+}
 </style>
 </head>
 <body>
@@ -41,7 +231,7 @@ textarea:focus { outline: none; border-color: #07c160; }
   <h1>WxClawBotPush</h1>
   <div class="right">
     <span id="headerUser"></span>
-    <button onclick="logout()">退出</button>
+    <button class="btn-logout" onclick="logout()">退出</button>
   </div>
 </div>
 <div class="container" id="app"></div>
@@ -50,12 +240,11 @@ textarea:focus { outline: none; border-color: #07c160; }
 var token = localStorage.getItem('token');
 if (!token) window.location.href = '/login.html';
 
-var qrPollTimer = null;      // 扫码状态轮询定时器
-var qrPollCount = 0;        // 轮询次数（2s * 90 = 3分钟超时）
-var QR_POLL_MAX = 90;       // 最大轮询次数
-var isAdmin = false;        // 是否为管理员
+var qrPollTimer = null;
+var qrPollCount = 0;
+var QR_POLL_MAX = 90;
+var isAdmin = false;
 
-// API 请求封装（自动携带 Authorization header）
 var api = function(url, opts) {
   opts = opts || {};
   opts.headers = Object.assign({}, opts.headers || {}, {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token});
@@ -75,79 +264,87 @@ async function load() {
   document.getElementById('headerUser').textContent = '';
 
   var html = '';
-  if (isAdmin) {
-    html += renderAdminPanel(resp, statusResp, statsResp);
-  }
+  if (isAdmin) html += renderAdminPanel(statsResp);
   html += renderUserPanel(resp, statusResp);
 
   document.getElementById('app').innerHTML = html;
   if (isAdmin) loadUsers();
 }
 
-// ── 管理员面板渲染 ──────────────────────────────────────────
+// ── 管理员面板 ──────────────────────────────────────────────
 
-function renderAdminPanel(cfg, status, stats) {
-  return '<div class="card">' +
-    '<h2>系统看板</h2>' +
-    '<div id="statsTable">' +
-      '<table><tr><td>总用户</td><td>' + stats.total_users + '</td></tr></table>' +
+function renderAdminPanel(stats) {
+  return '<div class="kpi-row" id="kpiRow">' +
+    '<div class="kpi-card"><div class="kpi-label">总用户</div><div class="kpi-value">' + stats.total_users + '</div><div class="kpi-sub">含 ' + (stats.online_users || 0) + ' 在线</div></div>' +
+    '<div class="kpi-card"><div class="kpi-label">在线用户</div><div class="kpi-value">' + (stats.online_users || 0) + '</div><div class="kpi-sub">微信已连接</div></div>' +
+    '<div class="kpi-card">' +
+      '<div class="kpi-label">注册开关</div>' +
+      '<div style="display:flex;align-items:center;gap:8px;margin-top:8px">' +
+        '<input type="checkbox" id="regToggle" onchange="toggleReg(this.checked)">' +
+        '<label for="regToggle" style="font-size:13px;cursor:pointer;user-select:none">开放注册</label>' +
+      '</div>' +
     '</div>' +
-    '<div style="margin-top:16px">' +
-      '<input type="checkbox" id="regToggle" onchange="toggleReg(this.checked)">' +
-      '<label for="regToggle" style="font-size:14px">开放注册</label>' +
-    '</div>' +
-    '<h2 style="margin-top:20px">用户管理</h2>' +
+  '</div>' +
+  '<div class="card full-width">' +
+    '<h2>用户管理</h2>' +
     '<div id="userList"></div>' +
-    '<div class="form-row" style="margin-top:12px">' +
+    '<hr class="divider">' +
+    '<div class="form-row">' +
       '<input type="text" id="newUsername" placeholder="用户名">' +
       '<input type="password" id="newPassword" placeholder="密码">' +
-      '<button class="btn btn-green" onclick="createUser()">创建用户</button>' +
+      '<button class="btn btn-accent" onclick="createUser()">创建用户</button>' +
     '</div>' +
   '</div>';
 }
 
-// ── 用户面板渲染 ────────────────────────────────────────────
+// ── 用户面板 ────────────────────────────────────────────────
 
 function renderUserPanel(cfg, status) {
-  var html = '<div class="card"><h2>个人设置</h2>';
+  var html = '<div class="grid-2">';
 
-  // 微信连接状态（可刷新的区域）
+  // 左列：微信连接 + Webhook
+  html += '<div>';
+  html += '<div class="card"><h2>微信连接</h2>';
   html += '<div id="connectionStatus">';
   if (status.connected) {
-    html += '<p style="color:#07c160;font-size:14px">微信已连接 (' + (status.account_id || '未知账号') + ')</p>';
-    html += '<p style="font-size:13px;color:#666;margin-top:4px">已知联系人: <span id="knownUsersCount">' + (status.known_users || 0) + '</span> 个</p>';
-    html += '<button class="btn btn-red" onclick="logoutBot()">断开微信</button>';
+    html += '<div class="status-on">已连接</div>';
+    html += '<div class="status-meta">账号: ' + (status.account_id || '未知') + ' &middot; 联系人: ' + (status.known_users || 0) + ' 个</div>';
+    html += '<button class="btn btn-danger btn-sm" style="margin-top:10px" onclick="logoutBot()">断开微信</button>';
   } else {
-    html += '<p style="color:#999;font-size:14px">微信未连接</p>';
-    html += '<button class="btn btn-green" onclick="getQrCode()">扫码登录</button>';
+    html += '<div class="status-off">未连接</div>';
+    html += '<button class="btn btn-accent" style="margin-top:10px" onclick="getQrCode()">扫码登录</button>';
   }
-  html += '</div>';
-  html += '<div id="qrcodeArea" style="margin-top:12px"></div>';
+  html += '<div id="qrcodeArea"></div>';
+  html += '</div></div>';
 
-  // Webhook Token
-  html += '<h2 style="margin-top:24px">Webhook Token</h2>';
-  html += '<div class="tokencopy">' + cfg.webhook_token + '</div>';
-  html += '<button class="btn btn-green" onclick="resetToken()">重置 Token</button>';
+  html += '<div class="card"><h2>Webhook Token</h2>';
+  html += '<div class="token-display">' + cfg.webhook_token + '</div>';
+  html += '<button class="btn btn-outline btn-sm" onclick="resetToken()">重置 Token</button>';
   var origin = window.location.origin;
-  html += '<p style="font-size:12px;color:#999;margin-top:4px">推送地址: <span class="code">GET/POST ' + origin + '/webhook?token=' + cfg.webhook_token + '</span></p>';
+  html += '<p class="help-text">推送地址: <code class="inline">GET/POST ' + origin + '/webhook?token=' + cfg.webhook_token + '</code></p>';
+  html += '</div>';
+  html += '</div>';
 
-  // 消息模板
-  html += '<h2 style="margin-top:24px">消息模板</h2>';
+  // 右列：模板 + 密码 + 注销
+  html += '<div>';
+  html += '<div class="card"><h2>消息模板</h2>';
   html += '<textarea id="templateInput">' + (cfg.message_template || '') + '</textarea>';
-  html += '<button class="btn btn-green" style="margin-top:8px" onclick="saveTemplate()">保存模板</button>';
-  html += '<p style="font-size:12px;color:#999;margin-top:4px">占位符: <span class="code">{{ field }}</span> 支持嵌套如 <span class="code">{{ alert.name }}</span></p>';
+  html += '<button class="btn btn-accent btn-sm" style="margin-top:8px" onclick="saveTemplate()">保存模板</button>';
+  html += '<p class="help-text">占位符: <code>{{ field }}</code> 支持嵌套 <code>{{ alert.name }}</code></p>';
+  html += '</div>';
 
-  // 修改密码
-  html += '<h2 style="margin-top:24px">修改密码</h2>';
-  html += '<input type="password" id="currentPassword" placeholder="当前密码" style="width:100%;padding:8px 12px;border:1px solid #d9d9d9;border-radius:6px;font-size:14px;margin-bottom:8px">';
-  html += '<input type="password" id="newPassword" placeholder="新密码（至少6位）" style="width:100%;padding:8px 12px;border:1px solid #d9d9d9;border-radius:6px;font-size:14px;margin-bottom:8px">';
-  html += '<input type="password" id="confirmPassword" placeholder="确认新密码" style="width:100%;padding:8px 12px;border:1px solid #d9d9d9;border-radius:6px;font-size:14px;margin-bottom:8px">';
-  html += '<button class="btn btn-green" onclick="changePassword()">修改密码</button>';
+  html += '<div class="card"><h2>修改密码</h2>';
+  html += '<div class="form-group"><input type="password" id="currentPassword" placeholder="当前密码"></div>';
+  html += '<div class="form-group"><input type="password" id="newPassword" placeholder="新密码（至少 6 位）"></div>';
+  html += '<div class="form-group"><input type="password" id="confirmPassword" placeholder="确认新密码"></div>';
+  html += '<button class="btn btn-primary" onclick="changePassword()">修改密码</button>';
+  html += '</div>';
 
-  // 注销账号
-  html += '<h2 style="margin-top:24px;color:#e74c3c">注销账号</h2>';
-  html += '<p style="font-size:13px;color:#999;margin-bottom:8px">注销后所有数据将被永久删除，无法恢复。</p>';
-  html += '<button class="btn btn-red" onclick="deactivateAccount()">注销我的账号</button>';
+  html += '<div class="card danger-zone"><h2>注销账号</h2>';
+  html += '<p>注销后所有数据将被永久删除，此操作不可恢复。</p>';
+  html += '<button class="btn btn-danger" onclick="deactivateAccount()">注销我的账号</button>';
+  html += '</div>';
+  html += '</div>';
 
   html += '</div>';
   return html;
@@ -155,14 +352,13 @@ function renderUserPanel(cfg, status) {
 
 // ── 二维码扫码状态轮询 ──────────────────────────────────────
 
-/* 每 2 秒检查一次扫码状态，连接成功后自动刷新页面，3 分钟后超时停止 */
 async function pollQrStatus() {
   qrPollCount++;
   if (qrPollCount >= QR_POLL_MAX) {
     clearInterval(qrPollTimer);
     qrPollTimer = null;
     document.getElementById('qrcodeArea').innerHTML =
-      '<p style="font-size:13px;color:#e74c3c">二维码已过期，请重新获取</p>';
+      '<div class="qr-box"><p class="qr-expired">二维码已过期，请重新获取</p></div>';
     return;
   }
   try {
@@ -175,7 +371,6 @@ async function pollQrStatus() {
   } catch(e) {}
 }
 
-// 页面切到后台时暂停轮询，切回时继续
 document.addEventListener('visibilitychange', function() {
   if (!qrPollTimer) return;
   if (document.hidden) {
@@ -193,9 +388,10 @@ async function getQrCode() {
     var resp = await api('/api/user/qrcode');
     if (resp.qrcode_url) {
       document.getElementById('qrcodeArea').innerHTML =
-        '<p style="font-size:13px;color:#666;margin-bottom:8px">请用微信扫描二维码（扫描后自动刷新）</p>' +
-        '<img src="/api/user/qrcode/image?t=' + Date.now() + '" style="width:280px;height:280px" onerror="setTimeout(getQrCode, 3000)">';
-      // 启动扫码状态轮询
+        '<div class="qr-box">' +
+        '<p class="qr-hint">请用微信扫描二维码（扫描后自动刷新）</p>' +
+        '<img src="/api/user/qrcode/image?t=' + Date.now() + '" width="220" height="220" onerror="setTimeout(getQrCode, 3000)">' +
+        '</div>';
       if (qrPollTimer) clearInterval(qrPollTimer);
       qrPollCount = 0;
       qrPollTimer = setInterval(pollQrStatus, 2000);
@@ -222,27 +418,38 @@ async function saveTemplate() {
 async function loadStats() {
   var resp = await api('/api/admin/stats');
   if (resp.total_users !== undefined) {
-    document.getElementById('statsTable').innerHTML =
-      '<table><tr><td>总用户</td><td>' + resp.total_users + '</td></tr></table>';
+    var kpiRow = document.getElementById('kpiRow');
+    if (kpiRow) {
+      kpiRow.innerHTML =
+        '<div class="kpi-card"><div class="kpi-label">总用户</div><div class="kpi-value">' + resp.total_users + '</div><div class="kpi-sub">含 ' + (resp.online_users || 0) + ' 在线</div></div>' +
+        '<div class="kpi-card"><div class="kpi-label">在线用户</div><div class="kpi-value">' + (resp.online_users || 0) + '</div><div class="kpi-sub">微信已连接</div></div>' +
+        '<div class="kpi-card"><div class="kpi-label">注册开关</div>' +
+          '<div style="display:flex;align-items:center;gap:8px;margin-top:8px">' +
+            '<input type="checkbox" id="regToggle" onchange="toggleReg(this.checked)">' +
+            '<label for="regToggle" style="font-size:13px;cursor:pointer;user-select:none">开放注册</label>' +
+          '</div>' +
+        '</div>';
+    }
   }
 }
 
 async function loadUsers() {
   var resp = await api('/api/admin/users');
   var users = resp.users || [];
-  document.getElementById('userList').innerHTML = '<table><tr><th>ID</th><th>用户名</th><th>角色</th><th>状态</th><th>微信</th><th>创建时间</th><th>操作</th></tr>' +
+  document.getElementById('userList').innerHTML =
+    '<table><thead><tr><th>ID</th><th>用户名</th><th>角色</th><th>状态</th><th>微信</th><th>创建时间</th><th>操作</th></tr></thead><tbody>' +
     users.map(function(u) { return '<tr>' +
       '<td>' + u.id + '</td><td>' + u.username + '</td>' +
       '<td>' + (u.is_admin ? '管理员' : '用户') + '</td>' +
-      '<td><span class="badge ' + (u.is_disabled ? 'badge-off' : 'badge-on') + '">' + (u.is_disabled ? '已禁用' : '正常') + '</span></td>' +
-      '<td><span class="badge ' + (u.is_connected ? 'badge-on' : 'badge-off') + '">' + (u.is_connected ? '已连接' : '未连接') + '</span></td>' +
+      '<td><span class="badge ' + (u.is_disabled ? 'badge-neutral' : 'badge-success') + '">' + (u.is_disabled ? '已禁用' : '正常') + '</span></td>' +
+      '<td><span class="badge ' + (u.is_connected ? 'badge-success' : 'badge-neutral') + '">' + (u.is_connected ? '已连接' : '未连接') + '</span></td>' +
       '<td>' + u.created_at + '</td>' +
       '<td>' +
-        '<button onclick="toggleUser(' + u.id + ', ' + (!u.is_disabled) + ')">' + (u.is_disabled ? '启用' : '禁用') + '</button>' +
-        '<button onclick="deleteUser(' + u.id + ')" style="color:#e74c3c;margin-left:4px">删除</button>' +
+        '<button class="action-btn" onclick="toggleUser(' + u.id + ', ' + (!u.is_disabled) + ')">' + (u.is_disabled ? '启用' : '禁用') + '</button>' +
+        '<button class="action-btn danger" onclick="deleteUser(' + u.id + ')">删除</button>' +
       '</td>' +
     '</tr>'; }).join('') +
-  '</table>';
+    '</tbody></table>';
 }
 
 // ── 管理员操作 ──────────────────────────────────────────────
